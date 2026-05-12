@@ -1,0 +1,9 @@
+{
+  "scene_id": "scene-001",
+  "seed": "lyman-alpha-furnace",
+  "num_nodes": 12,
+  "num_galaxies": 80,
+  "region_size_mpc": 80.0,
+  "redshift": 3.1,
+  "output_dir": "data/generated/scene-001"
+}

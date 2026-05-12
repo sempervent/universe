@@ -1,0 +1,544 @@
+{
+  "id": "scene-001",
+  "name": "The Lyman-alpha Furnace",
+  "seed": "example-small",
+  "redshift": 3.1,
+  "size_mpc": 80.0,
+  "objects": [
+    {
+      "id": "lab-001",
+      "name": "The Furnace",
+      "type": "lyman_alpha_blob",
+      "position_mpc": {
+        "x": 8.55451851411048,
+        "y": 6.904963613317077,
+        "z": -2.6095099174929426
+      },
+      "redshift": 3.1,
+      "description": "A luminous Lyman-alpha blob (~300 ckpc across) powered by gas accretion, starburst activity, and possibly AGN feedback in a protocluster core.",
+      "properties": {
+        "diameter_ckpc": 341.0,
+        "lyman_alpha_luminosity_erg_s": "1.0e44",
+        "gas_temperature_K": 45116.0,
+        "embedded_galaxy_count": 5
+      },
+      "visual": {
+        "color": "#44ffaa",
+        "emissive": true,
+        "opacity": 0.35,
+        "scale": 8.0,
+        "glow": true,
+        "label": "The Furnace (LAB)",
+        "extras": {}
+      },
+      "relationships": [
+        {
+          "target_id": "gal-000",
+          "relation": "embeds",
+          "description": "Embedded young galaxy"
+        },
+        {
+          "target_id": "gal-001",
+          "relation": "embeds",
+          "description": "Embedded young galaxy"
+        },
+        {
+          "target_id": "gal-004",
+          "relation": "embeds",
+          "description": "Embedded young galaxy"
+        },
+        {
+          "target_id": "gal-003",
+          "relation": "embeds",
+          "description": "Embedded young galaxy"
+        },
+        {
+          "target_id": "gal-002",
+          "relation": "embeds",
+          "description": "Embedded young galaxy"
+        }
+      ]
+    },
+    {
+      "id": "qso-001",
+      "name": "Lucerna",
+      "type": "quasar",
+      "position_mpc": {
+        "x": 10.358270472100173,
+        "y": 3.0265173570392556,
+        "z": -2.9855370636470564
+      },
+      "redshift": 3.1,
+      "description": "High-redshift quasar with relativistic jets, powered by Tenebris.",
+      "properties": {
+        "bolometric_luminosity_erg_s": "1.3e47",
+        "jet_opening_angle_deg": 21.4,
+        "jet_length_ckpc": 125.0,
+        "accretion_rate_msun_yr": 1.65
+      },
+      "visual": {
+        "color": "#ffffff",
+        "emissive": true,
+        "opacity": 1.0,
+        "scale": 1.5,
+        "glow": true,
+        "label": "Lucerna (QSO)",
+        "extras": {
+          "jet_color": "#ff4400",
+          "accretion_disk_color": "#ffaa22"
+        }
+      },
+      "relationships": [
+        {
+          "target_id": "bh-001",
+          "relation": "powered_by",
+          "description": "Accretion onto supermassive black hole Tenebris"
+        }
+      ]
+    },
+    {
+      "id": "bh-001",
+      "name": "Tenebris",
+      "type": "black_hole",
+      "position_mpc": {
+        "x": 10.358270472100173,
+        "y": 3.0265173570392556,
+        "z": -2.9855370636470564
+      },
+      "redshift": 3.1,
+      "description": "Supermassive black hole powering the protocluster quasar.",
+      "properties": {
+        "mass_msun": 267638172.0,
+        "schwarzschild_radius_au": 26415887.6,
+        "spin": 0.873
+      },
+      "visual": {
+        "color": "#000000",
+        "emissive": false,
+        "opacity": 1.0,
+        "scale": 0.5,
+        "glow": false,
+        "label": "Tenebris (SMBH)",
+        "extras": {
+          "lensing_strength": 0.81
+        }
+      },
+      "relationships": [
+        {
+          "target_id": "qso-001",
+          "relation": "powers",
+          "description": "Powers quasar Lucerna via accretion"
+        }
+      ]
+    },
+    {
+      "id": "mag-001",
+      "name": "Pulsar Ignis",
+      "type": "magnetar",
+      "position_mpc": {
+        "x": 8.611340880214836,
+        "y": 4.362932275538714,
+        "z": -0.9195982374751224
+      },
+      "redshift": 3.1,
+      "description": "A magnetar embedded in a young galaxy \u2014 remnant of a massive star.",
+      "properties": {
+        "magnetic_field_gauss": "2.2e15",
+        "period_seconds": 10.84,
+        "age_years": 3265.0
+      },
+      "visual": {
+        "color": "#ff00ff",
+        "emissive": true,
+        "opacity": 1.0,
+        "scale": 0.1,
+        "glow": true,
+        "label": "Pulsar Ignis (Magnetar)",
+        "extras": {}
+      },
+      "relationships": [
+        {
+          "target_id": "gal-000",
+          "relation": "hosted_by",
+          "description": "Embedded in galaxy Aethon-000"
+        }
+      ]
+    },
+    {
+      "id": "cmb-001",
+      "name": "CMB Shell",
+      "type": "cmb_background",
+      "position_mpc": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "redshift": 1100.0,
+      "description": "Cosmic microwave background \u2014 last scattering surface at z\u22481100.",
+      "properties": {
+        "temperature_K": 731.7621951219512,
+        "observed_temperature_K": 2.725
+      },
+      "visual": {
+        "color": "#110808",
+        "emissive": false,
+        "opacity": 0.15,
+        "scale": 1000.0,
+        "glow": false,
+        "label": "CMB Background",
+        "extras": {}
+      },
+      "relationships": []
+    },
+    {
+      "id": "void-000",
+      "name": "Void 0",
+      "type": "void",
+      "position_mpc": {
+        "x": -39.52793538726604,
+        "y": 14.455309862754952,
+        "z": -33.57221415058977
+      },
+      "redshift": 3.1,
+      "description": "Low-density void region with minimal galaxy presence.",
+      "properties": {
+        "diameter_mpc": 18.9,
+        "underdensity_delta": -0.73
+      },
+      "visual": {
+        "color": "#000022",
+        "emissive": false,
+        "opacity": 0.08,
+        "scale": 15.0,
+        "glow": false,
+        "label": "Void 0",
+        "extras": {}
+      },
+      "relationships": []
+    },
+    {
+      "id": "void-001",
+      "name": "Void 1",
+      "type": "void",
+      "position_mpc": {
+        "x": -28.162674895802525,
+        "y": -13.085967036583476,
+        "z": 35.15959763354339
+      },
+      "redshift": 3.1,
+      "description": "Low-density void region with minimal galaxy presence.",
+      "properties": {
+        "diameter_mpc": 18.4,
+        "underdensity_delta": -0.52
+      },
+      "visual": {
+        "color": "#000022",
+        "emissive": false,
+        "opacity": 0.08,
+        "scale": 15.0,
+        "glow": false,
+        "label": "Void 1",
+        "extras": {}
+      },
+      "relationships": []
+    },
+    {
+      "id": "gal-000",
+      "name": "Aethon-000",
+      "type": "galaxy",
+      "position_mpc": {
+        "x": 8.625147711311424,
+        "y": 4.378919957956516,
+        "z": -0.9333686762901242
+      },
+      "redshift": 3.1054095234501498,
+      "description": "Young galaxy along cosmic web at z\u22483.1",
+      "properties": {
+        "stellar_mass_msun": 186799367020.0,
+        "star_formation_rate_msun_yr": 41.1,
+        "morphology": "compact"
+      },
+      "visual": {
+        "color": "#6688ff",
+        "emissive": true,
+        "opacity": 1.0,
+        "scale": 0.9158836978807459,
+        "glow": false,
+        "label": "Aethon-000",
+        "extras": {}
+      },
+      "relationships": []
+    },
+    {
+      "id": "gal-001",
+      "name": "Borealis-001",
+      "type": "galaxy",
+      "position_mpc": {
+        "x": 9.929735001230771,
+        "y": 2.0407053735550003,
+        "z": -3.3820271557100483
+      },
+      "redshift": 3.101240028742294,
+      "description": "Young galaxy along cosmic web at z\u22483.1",
+      "properties": {
+        "stellar_mass_msun": 1248090259.0,
+        "star_formation_rate_msun_yr": 140.9,
+        "morphology": "compact"
+      },
+      "visual": {
+        "color": "#6688ff",
+        "emissive": true,
+        "opacity": 1.0,
+        "scale": 0.8172921117639729,
+        "glow": false,
+        "label": "Borealis-001",
+        "extras": {}
+      },
+      "relationships": []
+    },
+    {
+      "id": "gal-002",
+      "name": "Calyx-002",
+      "type": "galaxy",
+      "position_mpc": {
+        "x": -5.691999672104403,
+        "y": -28.135994585142775,
+        "z": -22.301381543547286
+      },
+      "redshift": 3.1187274444462667,
+      "description": "Young galaxy along cosmic web at z\u22483.1",
+      "properties": {
+        "stellar_mass_msun": 2617432947.0,
+        "star_formation_rate_msun_yr": 219.2,
+        "morphology": "compact"
+      },
+      "visual": {
+        "color": "#6688ff",
+        "emissive": true,
+        "opacity": 1.0,
+        "scale": 0.9171427442369038,
+        "glow": false,
+        "label": "Calyx-002",
+        "extras": {}
+      },
+      "relationships": []
+    },
+    {
+      "id": "gal-003",
+      "name": "Dione-003",
+      "type": "galaxy",
+      "position_mpc": {
+        "x": 0.3178732053284026,
+        "y": -28.911490051610574,
+        "z": -7.093215043643799
+      },
+      "redshift": 3.100972976738846,
+      "description": "Young galaxy along cosmic web at z\u22483.1",
+      "properties": {
+        "stellar_mass_msun": 3626101838.0,
+        "star_formation_rate_msun_yr": 25.7,
+        "morphology": "irregular"
+      },
+      "visual": {
+        "color": "#6688ff",
+        "emissive": true,
+        "opacity": 1.0,
+        "scale": 0.7577249904265375,
+        "glow": false,
+        "label": "Dione-003",
+        "extras": {}
+      },
+      "relationships": []
+    },
+    {
+      "id": "gal-004",
+      "name": "Elara-004",
+      "type": "galaxy",
+      "position_mpc": {
+        "x": 8.593504298922262,
+        "y": 1.5440733007313572,
+        "z": -0.4527548451502521
+      },
+      "redshift": 3.1160825855799583,
+      "description": "Young galaxy along cosmic web at z\u22483.1",
+      "properties": {
+        "stellar_mass_msun": 320816547.0,
+        "star_formation_rate_msun_yr": 5.8,
+        "morphology": "proto-spiral"
+      },
+      "visual": {
+        "color": "#6688ff",
+        "emissive": true,
+        "opacity": 1.0,
+        "scale": 0.7551756731298652,
+        "glow": false,
+        "label": "Elara-004",
+        "extras": {}
+      },
+      "relationships": []
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node-000",
+      "position_mpc": {
+        "x": 9.73254100790454,
+        "y": 3.967473217652543,
+        "z": -2.3537435420622663
+      },
+      "density": 2.2299,
+      "node_class": "void_boundary"
+    },
+    {
+      "id": "node-001",
+      "position_mpc": {
+        "x": -5.747683118111482,
+        "y": -20.768804340306293,
+        "z": -32.731595943538295
+      },
+      "density": 0.1,
+      "node_class": "void_boundary"
+    },
+    {
+      "id": "node-002",
+      "position_mpc": {
+        "x": -18.684923583747207,
+        "y": 16.691407054465436,
+        "z": 18.650433004999066
+      },
+      "density": 0.1,
+      "node_class": "filament_intersection"
+    },
+    {
+      "id": "node-003",
+      "position_mpc": {
+        "x": -3.864397498100587,
+        "y": -35.13773560790974,
+        "z": -9.374833146024688
+      },
+      "density": 0.1,
+      "node_class": "void_boundary"
+    }
+  ],
+  "filaments": [
+    {
+      "id": "fil-000",
+      "start_node_id": "node-001",
+      "end_node_id": "node-003",
+      "control_points_mpc": [
+        {
+          "x": -5.974572773975831,
+          "y": -28.379120860800587,
+          "z": -21.71202767517559
+        }
+      ],
+      "density": 0.1,
+      "radius_mpc": 0.779,
+      "galaxy_count_hint": 5
+    },
+    {
+      "id": "fil-001",
+      "start_node_id": "node-000",
+      "end_node_id": "node-002",
+      "control_points_mpc": [
+        {
+          "x": -4.981827936388958,
+          "y": 7.04003135592096,
+          "z": 5.818555646016013
+        }
+      ],
+      "density": 1.165,
+      "radius_mpc": 0.28,
+      "galaxy_count_hint": 2
+    },
+    {
+      "id": "fil-002",
+      "start_node_id": "node-000",
+      "end_node_id": "node-003",
+      "control_points_mpc": [
+        {
+          "x": 2.638307692296333,
+          "y": -15.5316352689844,
+          "z": -8.995253842355812
+        }
+      ],
+      "density": 1.165,
+      "radius_mpc": 0.585,
+      "galaxy_count_hint": 6
+    },
+    {
+      "id": "fil-003",
+      "start_node_id": "node-000",
+      "end_node_id": "node-001",
+      "control_points_mpc": [
+        {
+          "x": 1.603541773401687,
+          "y": -7.320688150502354,
+          "z": -19.036064130625935
+        }
+      ],
+      "density": 1.165,
+      "radius_mpc": 0.221,
+      "galaxy_count_hint": 8
+    },
+    {
+      "id": "fil-004",
+      "start_node_id": "node-002",
+      "end_node_id": "node-003",
+      "control_points_mpc": [
+        {
+          "x": -8.781221228374081,
+          "y": -12.40490875021276,
+          "z": 3.677398235442922
+        }
+      ],
+      "density": 0.1,
+      "radius_mpc": 0.73,
+      "galaxy_count_hint": 10
+    },
+    {
+      "id": "fil-005",
+      "start_node_id": "node-001",
+      "end_node_id": "node-002",
+      "control_points_mpc": [
+        {
+          "x": -10.972590855721807,
+          "y": -0.5655061832569219,
+          "z": -10.20074520732621
+        }
+      ],
+      "density": 0.1,
+      "radius_mpc": 0.576,
+      "galaxy_count_hint": 7
+    }
+  ],
+  "metadata": {
+    "schema_version": "0.1.0",
+    "generator": "universe",
+    "description": "A high-redshift protocluster scene at z\u22483.1 containing cosmic web structure, a luminous Lyman-alpha blob, a quasar/black-hole system, young galaxies, and a magnetar.",
+    "scientific_caveats": [
+      "Positions use simplified random placement, not N-body simulation.",
+      "Galaxy properties are order-of-magnitude estimates, not catalog-derived.",
+      "Cosmic web topology is a proximity graph, not a Delaunay/Voronoi tessellation.",
+      "Redshift perturbations are cosmetic, not from peculiar velocities.",
+      "Lyman-alpha blob luminosity is representative, not radiative-transfer modeled."
+    ]
+  },
+  "visual_modes": [
+    "beauty",
+    "science",
+    "lyman_alpha",
+    "xray",
+    "radio",
+    "density",
+    "cmb"
+  ],
+  "_units": {
+    "position": "comoving Mpc (cMpc)",
+    "size": "comoving kpc (ckpc) unless noted",
+    "mass": "solar masses (M\u2609)",
+    "luminosity": "erg/s or solar luminosities (L\u2609)",
+    "redshift": "dimensionless z",
+    "coordinate_system": "right-handed Cartesian"
+  }
+}
