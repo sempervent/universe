@@ -44,6 +44,25 @@
 - Safe HTML escaping for user-provided names.
 - Backward-compatible: old game state JSON loads with default entity.
 
+## Phase 3.6: Survey programs and milestones ✅
+
+- 10 deterministic survey programs gated by telescope tiers and signal types.
+- Per-survey progress, scope (solar-system / deep-field / any), and one-time RP rewards.
+- Auto-completion and auto-claim on goal reached, with idempotent `claim-survey` command.
+- 14 milestones recognising meaningful firsts, including a clearly-labelled speculative now-scope first light.
+- Auto-evaluation in the discovery loop and at UI load; idempotent `claim-milestones` command.
+- CLI: `surveys`, `start-survey`, `claim-survey`, `milestones`, `claim-milestones`; surveys/milestones surfaced in `status` and `report`.
+- Telescope UI gains Surveys and Milestones tabs with persistent localStorage state.
+- Backward-compatible: pre-survey state files load with empty progress and turn 0.
+
+## Phase 3.7: Balance playtest instrumentation ✅
+
+- `PlaytestEvent` / `PlaytestRun` telemetry models (`src/universe/game/telemetry.py`).
+- Deterministic scenarios and `greedy_research` autoplay (`src/universe/game/playtest.py`).
+- CLI: `game playtest`, `game playtest-matrix`, `game balance-report`.
+- Markdown balance reports with tier/survey/milestone timing and heuristic warnings.
+- Docs: [balance-playtesting.md](balance-playtesting.md).
+
 ## Phase 3b: Enhanced telescope UI (next)
 
 - Visual/signal mode switching per observation.
@@ -51,14 +70,53 @@
 - Sound/visual effects for discovery moments.
 - Observation animation.
 - Entity-type gameplay bonuses (currently flavor only).
+- Survey queues and re-runnable observation campaigns.
+- In-UI milestone toasts.
 
-## Phase 4: Unreal/Godot visualization frontend
+## Phase 4a: Godot 4 telescope frontend ✅
 
-- Scene.json importer for Unreal Engine.
-- Scene.json importer for Godot.
-- Engine-native material and particle representations.
-- Telescope viewfinder UI in-engine.
-- See `docs/import-planning.md` for detailed mapping.
+- Real Godot 4 project under `frontends/godot/`.
+- Loads canonical `scene.json` + `game-state.json` (with optional `user://overrides.json`).
+- 3D scene rendering: stars, planets, moons, asteroids, comets, galaxies, quasars, magnetars, black holes, LAB, cosmic web nodes/filaments, voids.
+- Observatory console UI: header, object list, detail, tech tree, surveys, milestones, log.
+- GDScript ports of the discovery, survey, and milestone engines (Python remains canonical).
+- Save State writes back to the same JSON, with `user://` fallback.
+- New CLI command `game export-godot-data` produces the engine data bundle.
+
+## Phase 4b: Godot playability & telescope feel ✅ (prototype scope)
+
+- ✅ 3D object picking (`Area3D` + camera raycast); selection synced with list + detail + log.
+- ✅ **Scene 001 deep-field polish:** scene classification, Mpc normalization, filament polylines with control points, LAB / quasar / black-hole / magnetar differentiation, node markers, signal-mode tables, console survey hints + object filters, `user://overrides.json` smoke path (see `docs/godot-frontend.md`, `frontends/godot/README.md`).
+- ✅ Orbit / zoom / pan camera (`TelescopeCamera.gd`); F focus, R reset, L labels.
+- ✅ `Label3D` names with discovery-aware text; signal visualization modes + UI help.
+- ✅ Visual bands for discovery confidence; selected-object highlight.
+- ✅ Save/load messaging + fallback path + reset / export JSON from console.
+
+## Phase 4c: Research entity background modifiers ✅
+
+- Small **EntityModifier** effects on discovery RP, confidence (when already detectable), tier costs, survey progress/rewards, and milestone rewards — see `docs/entity-backgrounds.md`.
+- `universe game export-godot-data` emits `entity_modifiers.json`; static HTML and Godot mirror the Python rules.
+
+Still deferred in Godot / shared:
+
+- FogVolume-based Lyman-alpha blob shader (Godot).
+- Per-scene skybox.
+
+## Phase 4d: Unreal Engine visualization frontend ✅ (prototype scope)
+
+- ✅ C++ project `frontends/unreal/` with `UUniverseSceneImporter` (canonical `scene.json`).
+- ✅ `AUniverseSceneActor` spawner: LAB shells, quasar jets (mesh), BH torus, magnetar, filaments, galaxy instances, nodes, CMB shell.
+- ✅ `UUniverseSignalModeSubsystem` + telescope pawn / canvas HUD inspector.
+- ✅ CLI `universe game export-unreal-data` → optional `frontends/unreal/Data/` bundle.
+- See `docs/unreal-frontend.md` and `frontends/unreal/README.md`.
+
+Still deferred in Unreal:
+
+- Niagara jets and magnetar bursts.
+- Volumetric LAB / `VolumetricCloud`.
+- Gravitational lensing post-process.
+- Full UMG assets and click-to-select line trace.
+- See `docs/import-planning.md` for the cinematic target mapping.
 
 ## Phase 5: Volumetric rendering
 

@@ -34,7 +34,7 @@ This scene combines these elements into a single navigable environment.
 - Positions are random with density biasing, not from N-body cosmology.
 - The cosmic web is a proximity graph, not a Voronoi/Delaunay tessellation.
 - Galaxy properties are order-of-magnitude estimates.
-- The LAB is represented as a single spherical object, not a resolved gas distribution.
+- The LAB is represented as a single object in JSON; **Godot** draws it as nested translucent shells (false-color metaphor), not a resolved gas distribution.
 - Redshift perturbations are cosmetic, not from peculiar velocities or Hubble flow.
 - The magnetar is placed for narrative interest, not from a stellar evolution model.
 
@@ -45,3 +45,30 @@ uv run universe generate scene-001 --seed lyman-alpha-furnace --out data/generat
 ```
 
 The output is deterministic for a given seed.
+
+## Optional scene metadata (for frontends)
+
+Exported `scene.json` includes optional `metadata` fields such as `scene_class`
+(`deep_field`), `recommended_camera_target_object_id`, `featured_object_ids`,
+`teaching_summary`, and `scale_description`. These are hints only; Godot falls
+back to heuristics if they are absent.
+
+## Godot workflow
+
+1. `uv run universe generate scene-001 --seed lyman-alpha-furnace --out data/generated/scene-001`
+2. `uv run universe game export-godot-data --out frontends/godot/data`
+3. Open `frontends/godot/project.godot`, set `user://overrides.json` with **absolute** paths to `scene-001/scene.json` and your `game-state.json`.
+4. Run Main → **Reload Scene/State** if overrides changed.
+
+See `docs/godot-frontend.md` and `frontends/godot/README.md` for deep-field signal behavior and a manual test checklist.
+
+## Unreal workflow
+
+```bash
+uv run universe generate scene-001 --seed lyman-alpha-furnace --out data/generated/scene-001
+uv run universe game export-unreal-data \
+  --scene data/generated/scene-001/scene.json \
+  --out frontends/unreal/Data
+```
+
+Open `frontends/unreal/Universe.uproject`, place `AUniverseSceneActor`, press Play. See `docs/unreal-frontend.md`.

@@ -4,6 +4,8 @@
 
 The `scene.json` format is the bridge between the `universe` data core and rendering engines. Each engine needs an importer that reads the JSON and instantiates engine-native representations.
 
+**Status:** Godot has a playable importer/renderer (`frontends/godot/`). Unreal has a C++ prototype importer (`frontends/unreal/`, see `docs/unreal-frontend.md`).
+
 ```
 scene.json → Importer Plugin → Engine-native actors/nodes/materials/particles
 ```

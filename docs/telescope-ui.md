@@ -57,8 +57,23 @@ See [Research Entity](research-entity.md) for details.
 | **Header** | Research Entity name, active telescope, RP, signal count, discovery count |
 | **Left: Controls** | Observe/Survey buttons, scrollable object list |
 | **Center: Sky Map** | 2D radial projection — Earth/observatory at center, objects by distance |
-| **Right: Detail/Tech** | Tabbed — object detail (signals, confidence, properties) or tech tree |
+| **Right: Tabs** | Object detail · Tech tree · **Surveys** · **Milestones** |
 | **Bottom: Log** | Timestamped discovery log |
+
+### Surveys tab
+
+Lists every survey program with current status (Locked / Available /
+Active / Completed), progress (e.g. `3/5`), prerequisites, and reward.
+Available surveys expose a **Start Survey** button; completed surveys with
+unclaimed rewards expose a **Claim** button (defensive — surveys are
+auto-claimed on completion).
+
+### Milestones tab
+
+Splits achievements into "Achieved" and "Remaining". Each card shows the
+description, reward, and a SPECULATIVE badge where applicable. Achieved
+milestones display the auto-claimed reward; remaining ones display the
+target reward.
 
 ## Sky map
 
@@ -89,16 +104,22 @@ Game state is stored in browser `localStorage` keyed by scene ID. Each scene has
 
 ## Embedded data
 
-The HTML file embeds six JSON datasets at build time:
+The HTML file embeds nine JSON datasets at build time:
 
 1. **Scene data** — full `SceneRegion` (objects, nodes, filaments, metadata).
-2. **Game state** — `ResearchState` (RP, unlocked tiers, discoveries, research entity).
+2. **Game state** — `ResearchState` (RP, unlocked tiers, discoveries, research entity, surveys, milestones, turn).
 3. **Tech tree** — all 12 `TelescopeTier` definitions.
 4. **Discovery requirements** — per-object-type signal/sensitivity/resolution rules.
 5. **Random entity names** — curated list for the "Random Name" button.
 6. **Entity type labels** — display names for the entity type dropdown.
+7. **Entity modifiers** — per-entity-type mechanical effects (mirrors Python `EntityModifier`).
+8. **Survey programs** — all `SurveyProgram` definitions (id, targets, requirements, reward).
+9. **Milestones** — all `Milestone` definitions (id, description, reward, speculative flag).
 
-The client-side JavaScript implements the same confidence calculation and point-award logic as the Python `discovery.py` module.
+The client-side JavaScript implements the same confidence calculation,
+point-award logic (including entity **discovery_rp_multiplier**), tier **effective costs**, survey-progress rules (including **survey_progress_bonus**), survey/milestone **reward multipliers**, and milestone predicates as the
+Python modules. Survey/milestone state is persisted in `localStorage`
+alongside discoveries and entity data.
 
 ## Current limitations
 
@@ -108,6 +129,8 @@ The client-side JavaScript implements the same confidence calculation and point-
 - No animation or time-domain events.
 - No sound or visual effects for discovery moments.
 - Discovery log is session-only (not persisted).
+- Only one active survey at a time; no survey queue.
+- Milestone notifications appear in the discovery log only — no toasts.
 
 ## Future: Unreal/Godot mapping
 

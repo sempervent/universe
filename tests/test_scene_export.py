@@ -34,6 +34,13 @@ class TestExport:
             assert len(data["objects"]) > 0
             assert len(data["nodes"]) > 0
             assert len(data["filaments"]) > 0
+            meta = data.get("metadata", {})
+            assert meta.get("scene_class") == "deep_field"
+            assert meta.get("recommended_camera_target_object_id", "") != ""
+            assert isinstance(meta.get("featured_object_ids", []), list)
+            rec = meta["recommended_camera_target_object_id"]
+            by_id = {o["id"]: o for o in data["objects"]}
+            assert by_id[rec]["type"] == "lyman_alpha_blob"
 
     def test_scene_json_roundtrip(self):
         scene = generate_scene_001(seed=SEED)

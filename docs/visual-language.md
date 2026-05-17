@@ -1,5 +1,15 @@
 # Visual Language
 
+## Engine frontend notes
+
+**Godot 4** uses simplified meshes (spheres, torus accretion placeholders,
+segmented filament cylinders, stacked LAB shells) for **playable** readability;
+see `docs/godot-frontend.md`.
+
+**Unreal Engine 5** uses the same `scene.json` with a C++ importer and
+engine-basic-shape placeholders aimed at **cinematic** Scene 001 spectacle
+(Niagara volumetrics and lensing remain future work); see `docs/unreal-frontend.md`.
+
 ## Design philosophy
 
 Visual modes are honest abstractions, not fake "human eye" realism. Each mode maps physical quantities to a coherent color palette and rendering style.

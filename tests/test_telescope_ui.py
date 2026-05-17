@@ -28,6 +28,8 @@ class TestExportTelescopeUI:
             export_telescope_ui(scene, out_path=out)
             content = out.read_text(encoding="utf-8")
             assert len(content) > 1000
+            assert "ENTITY_MODIFIERS" in content
+            assert "backyard_observatory" in content
 
     def test_embeds_scene_data(self):
         scene = _solar_scene()
@@ -147,3 +149,73 @@ class TestExportTelescopeUI:
             export_telescope_ui(scene, out_path=out)
             content = out.read_text(encoding="utf-8")
             assert "localStorage" in content
+
+
+class TestSurveyMilestoneEmbedding:
+    def test_html_embeds_survey_data(self):
+        scene = _solar_scene()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "ui.html"
+            export_telescope_ui(scene, out_path=out)
+            content = out.read_text(encoding="utf-8")
+            assert "local_sky_survey" in content
+            assert "deep_field_survey" in content
+            assert "now_scope_first_light" in content
+            assert "First Light Survey" in content
+            assert "const SURVEYS" in content
+
+    def test_html_embeds_milestone_data(self):
+        scene = _solar_scene()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "ui.html"
+            export_telescope_ui(scene, out_path=out)
+            content = out.read_text(encoding="utf-8")
+            assert "first_light" in content
+            assert "First Light" in content
+            assert "named_entity" in content
+            assert "Founding Charter" in content
+            assert "const MILESTONES" in content
+
+    def test_html_has_survey_and_milestone_tabs(self):
+        scene = _solar_scene()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "ui.html"
+            export_telescope_ui(scene, out_path=out)
+            content = out.read_text(encoding="utf-8")
+            assert 'data-tab="surveys"' in content
+            assert 'data-tab="milestones"' in content
+            assert 'id="tab-surveys"' in content
+            assert 'id="tab-milestones"' in content
+
+    def test_html_includes_survey_and_milestone_renderers(self):
+        scene = _solar_scene()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "ui.html"
+            export_telescope_ui(scene, out_path=out)
+            content = out.read_text(encoding="utf-8")
+            assert "function renderSurveys" in content
+            assert "function renderMilestones" in content
+            assert "function evaluateMilestonesJS" in content
+            assert "function applySurveyProgress" in content
+            assert "doStartSurvey" in content
+            assert "doClaimSurvey" in content
+
+    def test_speculative_marker_present(self):
+        scene = _solar_scene()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "ui.html"
+            export_telescope_ui(scene, out_path=out)
+            content = out.read_text(encoding="utf-8")
+            assert "SPECULATIVE" in content
+
+    def test_state_with_active_survey_embeds_in_html(self):
+        from universe.game.surveys import start_survey
+
+        scene = _solar_scene()
+        state = ResearchState()
+        state, _ = start_survey(state, "local_sky_survey")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "ui.html"
+            export_telescope_ui(scene, state=state, out_path=out)
+            content = out.read_text(encoding="utf-8")
+            assert '"active_survey_id":"local_sky_survey"' in content

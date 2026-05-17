@@ -6,12 +6,16 @@ cumulative: unlocking Tier 4 (radio) does not remove optical capability.
 
 from __future__ import annotations
 
+from universe.game.entity import get_entity_modifier
 from universe.game.models import (
     InstrumentType,
     ResearchState,
     SignalType,
     TelescopeTier,
 )
+
+# Early ground optical tiers (backyard_observatory discount applies here only).
+EARLY_OPTICAL_TIER_IDS: frozenset[str] = frozenset({"ground_optical", "improved_ground"})
 
 
 def get_default_tech_tree() -> list[TelescopeTier]:
@@ -227,6 +231,23 @@ def get_tier_by_id(tier_id: str) -> TelescopeTier | None:
     return next((t for t in _tree() if t.id == tier_id), None)
 
 
+def is_space_track_tier(tier: TelescopeTier) -> bool:
+    """Tiers from space_optical onward in the default tree (tier_index ≥ 3)."""
+    return tier.tier_index >= 3
+
+
+def effective_tier_research_cost(tier: TelescopeTier, state: ResearchState) -> int:
+    """RP cost after entity background modifiers (matches charged amount on unlock)."""
+    mod = get_entity_modifier(state.research_entity.entity_type)
+    cost = float(tier.research_cost)
+    cost *= mod.upgrade_cost_multiplier
+    if tier.id in EARLY_OPTICAL_TIER_IDS:
+        cost *= mod.early_optical_upgrade_cost_multiplier
+    if is_space_track_tier(tier):
+        cost *= mod.space_upgrade_cost_multiplier
+    return max(0, int(round(cost)))
+
+
 def all_signal_types_for_state(state: ResearchState) -> set[str]:
     """Return cumulative set of signal types across all unlocked tiers."""
     signals: set[str] = set()
@@ -289,8 +310,9 @@ def can_unlock_tier(state: ResearchState, tier_id: str) -> tuple[bool, str]:
     for prereq in tier.prerequisites:
         if prereq not in state.unlocked_tiers:
             return False, f"Missing prerequisite: {prereq}"
-    if state.research_points < tier.research_cost:
-        return False, f"Not enough RP: need {tier.research_cost}, have {state.research_points}"
+    eff = effective_tier_research_cost(tier, state)
+    if state.research_points < eff:
+        return False, f"Not enough RP: need {eff}, have {state.research_points}"
     return True, "OK"
 
 
@@ -306,13 +328,14 @@ def unlock_tier(state: ResearchState, tier_id: str) -> tuple[ResearchState, str]
     tier = get_tier_by_id(tier_id)
     assert tier is not None
 
+    eff_cost = effective_tier_research_cost(tier, state)
     new_unlocked = list(state.unlocked_tiers) + [tier_id]
     new_signals = set(state.known_signal_types)
     new_signals.update(s.value for s in tier.signal_types)
 
     new_state = state.model_copy(
         update={
-            "research_points": state.research_points - tier.research_cost,
+            "research_points": state.research_points - eff_cost,
             "unlocked_tiers": new_unlocked,
             "active_telescope_tier": tier_id,
             "known_signal_types": sorted(new_signals),

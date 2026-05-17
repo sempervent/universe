@@ -226,6 +226,15 @@ def generate_solar_system(seed: str = "local-sky") -> SceneRegion:
                 "Angular sizes are representative averages.",
                 "Apparent magnitudes are approximate mean opposition values.",
             ],
+            scene_class="solar_system",
+            recommended_camera_target_object_id="sun",
+            teaching_summary=(
+                "Local solar system tutorial sky: survey bright planets and moons "
+                "before deep-field campaigns."
+            ),
+            scale_description=(
+                "Distances stored as Mpc (AU × conversion); Godot uses a log-radial layout."
+            ),
         ),
         visual_modes=[m.value for m in VisualMode],
     )

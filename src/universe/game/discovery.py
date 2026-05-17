@@ -7,6 +7,7 @@ player can detect, at what confidence, and what research points to award.
 
 from __future__ import annotations
 
+from universe.game.entity import get_entity_modifier
 from universe.game.models import (
     DiscoveryRecord,
     DiscoveryRequirement,
@@ -176,6 +177,19 @@ def get_discovery_requirements() -> list[DiscoveryRequirement]:
             base_research_points=20,
             notes="Requires microwave/radio receiver capability.",
         ),
+        DiscoveryRequirement(
+            object_type="speculative_anomaly",
+            required_signal_types=[S.SPECULATIVE_NOW_SIGNAL],
+            minimum_telescope_tier=11,
+            minimum_sensitivity=0.9,
+            minimum_resolution_arcsec=0.01,
+            base_research_points=50,
+            notes=(
+                "Fictional now-scope target — causality-independent placeholder. "
+                "Not a real astrophysical object."
+            ),
+            speculative=True,
+        ),
     ]
 
 
@@ -263,7 +277,13 @@ def calculate_identification_confidence(
         if dist_ratio > 0.5:
             confidence *= max(0.3, 1.0 - (dist_ratio - 0.5))
 
-    return round(confidence, 4), all_detected
+    confidence = round(confidence, 4)
+    # Entity modifier: confidence bonus only if already detectable (no "magic" detections).
+    if confidence > 0:
+        mod = get_entity_modifier(state.research_entity.entity_type)
+        confidence = min(1.0, round(confidence + mod.confidence_bonus, 4))
+
+    return confidence, all_detected
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +318,101 @@ def _award_points(
     if confidence_upgraded and not newly_discovered:
         points = max(1, points // 2)
 
+    if points > 0:
+        mod = get_entity_modifier(state.research_entity.entity_type)
+        points = max(1, int(round(points * mod.discovery_rp_multiplier)))
+
     return max(1, points) if confidence >= 0.25 else 0
+
+
+# ---------------------------------------------------------------------------
+# Follow-up observations (diminishing returns)
+# ---------------------------------------------------------------------------
+
+MAX_FOLLOWUPS_PER_OBJECT = 2
+_FOLLOWUP_CHARACTERIZED = 0.95
+_FOLLOWUP_MIN_CONFIDENCE = 0.5
+
+_SOLAR_TYPES = frozenset({"star", "planet", "moon", "asteroid", "comet"})
+_DEEP_FOLLOWUP_RP: dict[str, int] = {
+    "galaxy": 3,
+    "quasar": 4,
+    "lyman_alpha_blob": 5,
+    "black_hole": 4,
+    "magnetar": 4,
+    "cosmic_web_node": 3,
+    "cosmic_web_filament": 4,
+    "void": 2,
+    "cmb_background": 2,
+    "speculative_anomaly": 5,
+}
+
+
+def _followup_base_rp(object_type: str) -> int:
+    if object_type in _SOLAR_TYPES:
+        return 1
+    return _DEEP_FOLLOWUP_RP.get(object_type, 3)
+
+
+def apply_followup_observations(
+    scene: SceneRegion,
+    state: ResearchState,
+    primary_results: list[DiscoveryResult],
+) -> tuple[list[DiscoveryResult], int, dict[str, int], dict[str, str]]:
+    """Award small RP for re-observing known objects when primary pass is quiet.
+
+    Returns follow-up results, total RP, and updated count/tier maps.
+    """
+    primary_ids = {
+        r.object_id
+        for r in primary_results
+        if r.object_id and not r.object_id.startswith("__")
+    }
+    followup_counts = dict(state.followup_observation_counts)
+    last_tiers = dict(state.last_observation_tier_by_object)
+    active_tier = state.active_telescope_tier
+    mod = get_entity_modifier(state.research_entity.entity_type)
+
+    out: list[DiscoveryResult] = []
+    total_rp = 0
+
+    for obj in scene.objects:
+        if obj.id in primary_ids:
+            last_tiers[obj.id] = active_tier
+            continue
+
+        prev = state.discoveries.get(obj.id)
+        if prev is None or prev.confidence < _FOLLOWUP_MIN_CONFIDENCE:
+            continue
+
+        count = followup_counts.get(obj.id, 0)
+        tier_changed = last_tiers.get(obj.id) != active_tier
+        if prev.confidence >= _FOLLOWUP_CHARACTERIZED and not tier_changed:
+            continue
+        if count >= MAX_FOLLOWUPS_PER_OBJECT and not tier_changed:
+            continue
+
+        base = _followup_base_rp(obj.type.value)
+        rp = max(1, min(5, int(round(base * mod.discovery_rp_multiplier))))
+        followup_counts[obj.id] = count + 1
+        last_tiers[obj.id] = active_tier
+        total_rp += rp
+        out.append(
+            DiscoveryResult(
+                object_id=obj.id,
+                object_type=obj.type.value,
+                identification_confidence=prev.confidence,
+                newly_discovered=False,
+                confidence_upgraded=False,
+                research_points_awarded=rp,
+                message=(
+                    f"Follow-up: {obj.name} ({obj.type.value}) — +{rp} RP "
+                    f"(diminishing returns, {followup_counts[obj.id]}/{MAX_FOLLOWUPS_PER_OBJECT})"
+                ),
+            )
+        )
+
+    return out, total_rp, followup_counts, last_tiers
 
 
 # ---------------------------------------------------------------------------
@@ -357,14 +471,26 @@ def observe_scene(
 ) -> tuple[ResearchState, list[DiscoveryResult]]:
     """Run a full observation pass.  Returns (new_state, results).
 
-    The input state is not mutated.
+    The input state is not mutated.  This function also advances the turn
+    counter, updates the active survey's progress, and evaluates milestones,
+    auto-claiming any newly-achieved rewards.
     """
-    results = observable_objects(scene, state)
+    # Local import to avoid an import cycle (surveys/milestones reference state).
+    from universe.game.milestones import evaluate_milestones
+    from universe.game.surveys import update_survey_progress_for_discovery
+
+    primary_results = observable_objects(scene, state)
+    followup_results, _, followup_counts, last_tiers = apply_followup_observations(
+        scene, state, primary_results
+    )
+    results = primary_results + followup_results
 
     new_discoveries = dict(state.discoveries)
     total_rp = 0
 
-    for r in results:
+    for r in primary_results:
+        if not r.object_id or r.object_id.startswith("__"):
+            continue
         total_rp += r.research_points_awarded
         prev = new_discoveries.get(r.object_id)
         if prev is None or r.identification_confidence > prev.confidence:
@@ -380,10 +506,70 @@ def observe_scene(
                 first_detected_tier=state.active_telescope_tier,
             )
 
+    for r in followup_results:
+        total_rp += r.research_points_awarded
+        prev = new_discoveries.get(r.object_id)
+        if prev is not None:
+            new_discoveries[r.object_id] = prev.model_copy(
+                update={
+                    "research_points_earned": prev.research_points_earned
+                    + r.research_points_awarded,
+                }
+            )
+
+    consecutive = 0 if total_rp > 0 else state.consecutive_no_rp_turns + 1
+
     new_state = state.model_copy(
         update={
             "research_points": state.research_points + total_rp,
             "discoveries": new_discoveries,
+            "turn": state.turn + 1,
+            "followup_observation_counts": followup_counts,
+            "last_observation_tier_by_object": last_tiers,
+            "consecutive_no_rp_turns": consecutive,
         }
     )
+
+    # Apply survey progress for each fresh / upgraded discovery.
+    survey_messages: list[str] = []
+    for r in results:
+        new_state, msgs = update_survey_progress_for_discovery(
+            new_state,
+            object_id=r.object_id,
+            object_type=r.object_type,
+            detected_signals=r.detected_signals,
+            confidence=r.identification_confidence,
+            scene_id=scene.id,
+        )
+        survey_messages.extend(msgs)
+
+    # Evaluate milestones (auto-claim rewards).
+    new_state, achieved = evaluate_milestones(new_state)
+
+    # Append milestone / survey progression messages as info-level results.
+    for msg in survey_messages:
+        results.append(
+            DiscoveryResult(
+                object_id="__survey__",
+                object_type="survey_event",
+                identification_confidence=0.0,
+                research_points_awarded=0,
+                message=msg,
+            )
+        )
+    for award in achieved:
+        m = award.milestone
+        spec = " [SPECULATIVE]" if m.speculative else ""
+        results.append(
+            DiscoveryResult(
+                object_id="__milestone__",
+                object_type="milestone_event",
+                identification_confidence=0.0,
+                research_points_awarded=award.research_points,
+                message=(
+                    f"Milestone: {m.name}{spec} — +{award.research_points} RP"
+                ),
+            )
+        )
+
     return new_state, results

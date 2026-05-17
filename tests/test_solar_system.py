@@ -65,3 +65,8 @@ class TestSolarSystemScene:
         jup_moons = [o for o in scene.objects if o.type == ObjectType.MOON and
                       o.properties.get("parent") == "Jupiter"]
         assert len(jup_moons) == 4
+
+    def test_metadata_scene_class_solar_system(self):
+        scene = generate_solar_system()
+        assert scene.metadata.scene_class == "solar_system"
+        assert scene.metadata.recommended_camera_target_object_id == "sun"

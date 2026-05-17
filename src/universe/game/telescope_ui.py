@@ -11,7 +11,9 @@ import json
 from pathlib import Path
 
 from universe.game.discovery import get_discovery_requirements
+from universe.game.milestones import get_default_milestones
 from universe.game.models import ResearchState
+from universe.game.surveys import get_default_survey_programs
 from universe.game.tech_tree import get_default_tech_tree
 from universe.models import SceneRegion
 
@@ -31,7 +33,11 @@ def export_telescope_ui(
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    from universe.game.entity import ENTITY_TYPE_LABELS, RANDOM_ENTITY_NAMES
+    from universe.game.entity import (
+        ENTITY_TYPE_LABELS,
+        RANDOM_ENTITY_NAMES,
+        get_all_entity_modifiers,
+    )
 
     scene_json = scene.model_dump_json()
     state_json = state.model_dump_json()
@@ -39,6 +45,10 @@ def export_telescope_ui(
     reqs_json = json.dumps([r.model_dump() for r in get_discovery_requirements()])
     random_names_json = json.dumps(RANDOM_ENTITY_NAMES)
     entity_types_json = json.dumps(ENTITY_TYPE_LABELS)
+    surveys_json = json.dumps([s.model_dump() for s in get_default_survey_programs()])
+    milestones_json = json.dumps([m.model_dump() for m in get_default_milestones()])
+
+    modifiers_json = json.dumps([m.model_dump() for m in get_all_entity_modifiers()])
 
     html = _TELESCOPE_HTML.replace("__SCENE_DATA__", scene_json)
     html = html.replace("__STATE_DATA__", state_json)
@@ -46,6 +56,9 @@ def export_telescope_ui(
     html = html.replace("__DISCOVERY_REQS__", reqs_json)
     html = html.replace("__RANDOM_NAMES__", random_names_json)
     html = html.replace("__ENTITY_TYPES__", entity_types_json)
+    html = html.replace("__ENTITY_MODIFIERS__", modifiers_json)
+    html = html.replace("__SURVEYS_DATA__", surveys_json)
+    html = html.replace("__MILESTONES_DATA__", milestones_json)
     html = html.replace("__SCENE_NAME__", scene.name)
 
     out.write_text(html, encoding="utf-8")
@@ -199,6 +212,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
     <span class="hstat rp" id="h-rp"></span>
     <span class="hstat" id="h-signals"></span>
     <span class="hstat" id="h-discoveries"></span>
+    <span class="hstat" id="h-background" style="max-width:280px;white-space:normal;line-height:1.3"></span>
     <button id="btn-export" title="Export game state as JSON">Export</button>
     <button id="btn-reset" title="Reset all progress">Reset</button>
   </div>
@@ -215,10 +229,14 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
   <div id="right">
     <div class="tab-bar">
       <div class="tab-btn active" data-tab="detail">Detail</div>
-      <div class="tab-btn" data-tab="tech">Tech Tree</div>
+      <div class="tab-btn" data-tab="tech">Tech</div>
+      <div class="tab-btn" data-tab="surveys">Surveys</div>
+      <div class="tab-btn" data-tab="milestones">Milestones</div>
     </div>
     <div id="tab-detail" class="tab-content active"></div>
     <div id="tab-tech" class="tab-content"></div>
+    <div id="tab-surveys" class="tab-content"></div>
+    <div id="tab-milestones" class="tab-content"></div>
   </div>
   <div id="log">
     <div class="panel-title">Discovery Log</div>
@@ -233,7 +251,10 @@ const INIT_STATE = __STATE_DATA__;
 const TECH_TREE = __TECH_TREE__;
 const DISC_REQS = __DISCOVERY_REQS__;
 const RANDOM_NAMES = __RANDOM_NAMES__;
+const SURVEYS = __SURVEYS_DATA__;
+const MILESTONES = __MILESTONES_DATA__;
 const ENTITY_TYPES = __ENTITY_TYPES__;
+const ENTITY_MODIFIERS = __ENTITY_MODIFIERS__;
 
 const STORAGE_KEY = 'universe_game_state_' + SCENE.id;
 const DEFAULT_ENTITY_NAME = 'Unnamed Research Entity';
@@ -307,6 +328,40 @@ function availableUpgrades() {
   return TECH_TREE.filter(t => !u.has(t.id) && t.prerequisites.every(p => u.has(p)));
 }
 
+// ── Entity background modifiers (mirror universe.game.entity + tech_tree) ──
+function getEntityModifier() {
+  const t = (state.research_entity || {}).entity_type || 'custom';
+  let m = ENTITY_MODIFIERS.find(x => x.entity_type === t);
+  if (!m) m = ENTITY_MODIFIERS.find(x => x.entity_type === 'custom');
+  return m;
+}
+function isEarlyOpticalTierId(id) {
+  return id === 'ground_optical' || id === 'improved_ground';
+}
+function isSpaceTrackTier(tier) {
+  return tier.tier_index >= 3;
+}
+function effectiveTierCost(tier) {
+  const mod = getEntityModifier();
+  let c = tier.research_cost;
+  c *= mod.upgrade_cost_multiplier;
+  if (isEarlyOpticalTierId(tier.id)) c *= mod.early_optical_upgrade_cost_multiplier;
+  if (isSpaceTrackTier(tier)) c *= mod.space_upgrade_cost_multiplier;
+  return Math.max(0, Math.round(c));
+}
+function effectiveSurveyReward(survey) {
+  const mod = getEntityModifier();
+  let mult = mod.survey_rp_multiplier;
+  if (mod.speculative_bonus && survey.speculative) mult *= 1.1;
+  return Math.max(0, Math.round(survey.reward_research_points * mult));
+}
+function effectiveMilestoneReward(m) {
+  const mod = getEntityModifier();
+  let mult = mod.milestone_rp_multiplier;
+  if (mod.speculative_bonus && m.speculative) mult *= 1.1;
+  return Math.max(0, Math.round(m.reward_research_points * mult));
+}
+
 // ── Discovery engine (JS port) ───────────────────────────────────────
 const reqMap = {};
 DISC_REQS.forEach(r => reqMap[r.object_type] = r);
@@ -338,7 +393,12 @@ function calcConfidence(obj) {
     const dr = dist / md;
     if (dr > 0.5) conf *= Math.max(0.3, 1 - (dr - 0.5));
   }
-  return { confidence: Math.round(conf * 10000) / 10000, detected: allDet };
+  conf = Math.round(conf * 10000) / 10000;
+  if (conf > 0) {
+    const mod = getEntityModifier();
+    conf = Math.min(1, Math.round((conf + mod.confidence_bonus) * 10000) / 10000);
+  }
+  return { confidence: conf, detected: allDet };
 }
 
 function confLabel(c) {
@@ -363,7 +423,9 @@ function awardPoints(obj, conf, isNew) {
     const seenTypes = new Set(Object.values(state.discoveries).map(d => d.object_type));
     if (!seenTypes.has(obj.type)) pts = Math.floor(pts * 1.5);
   }
-  return Math.max(1, pts);
+  pts = Math.max(1, pts);
+  const mod = getEntityModifier();
+  return Math.max(1, Math.round(pts * mod.discovery_rp_multiplier));
 }
 
 let firstDiscoveryCount = 0;
@@ -390,8 +452,12 @@ function observeObject(objId) {
     first_detected_tier: state.active_telescope_tier,
   };
   if (isNew) { firstDiscoveryCount++; firstTypesSeen.add(obj.type); }
+
+  // Survey progress
+  const surveyEvent = applySurveyProgress(objId, obj.type, detected, confidence);
+
   saveState();
-  return { obj, confidence, detected, pts, isNew, isUpgrade, isFirstOfType, label: confLabel(confidence) };
+  return { obj, confidence, detected, pts, isNew, isUpgrade, isFirstOfType, label: confLabel(confidence), surveyEvent };
 }
 
 function observeAll() {
@@ -408,8 +474,9 @@ function unlockTier(tierId) {
   if (!tier) return false;
   if (state.unlocked_tiers.includes(tierId)) return false;
   if (!tier.prerequisites.every(p => state.unlocked_tiers.includes(p))) return false;
-  if (state.research_points < tier.research_cost) return false;
-  state.research_points -= tier.research_cost;
+  const cost = effectiveTierCost(tier);
+  if (state.research_points < cost) return false;
+  state.research_points -= cost;
   state.unlocked_tiers.push(tierId);
   state.active_telescope_tier = tierId;
   const newSigs = new Set(state.known_signal_types);
@@ -417,6 +484,173 @@ function unlockTier(tierId) {
   state.known_signal_types = [...newSigs].sort();
   saveState();
   return true;
+}
+
+// ── Surveys (JS port of Python rules) ─────────────────────────────────
+const surveyMap = {};
+SURVEYS.forEach(s => surveyMap[s.id] = s);
+
+function ensureSurveyMilestoneFields() {
+  if (!state.survey_progress) state.survey_progress = {};
+  if (!state.milestones) state.milestones = {};
+  if (state.active_survey_id === undefined) state.active_survey_id = null;
+  if (typeof state.turn !== 'number') state.turn = 0;
+}
+
+function scopeMatches(survey) {
+  if (survey.scene_scope === 'any') return true;
+  if (survey.scene_scope === 'solar_system') return SCENE.id === 'solar-system';
+  if (survey.scene_scope === 'deep_field') return SCENE.id !== 'solar-system';
+  return false;
+}
+
+function surveyStatus(survey) {
+  const prog = state.survey_progress[survey.id];
+  if (prog && prog.completed) return 'completed';
+  if (state.active_survey_id === survey.id) return 'active';
+  const tiers = new Set(state.unlocked_tiers);
+  const sigs = new Set(state.known_signal_types);
+  if (!survey.required_tier_ids.every(t => tiers.has(t))) return 'locked';
+  if (!survey.required_signal_types.every(s => sigs.has(s))) return 'locked';
+  return 'available';
+}
+
+function matchesSurvey(survey, objType, detectedSignals, conf) {
+  if (survey.target_object_types && survey.target_object_types.length > 0) {
+    if (!survey.target_object_types.includes(objType)) return false;
+  } else if (!survey.speculative) {
+    return false;
+  }
+  if (conf < (survey.min_confidence || 0.5)) return false;
+  if (!scopeMatches(survey)) return false;
+  if (survey.required_signal_types && survey.required_signal_types.length > 0) {
+    const det = new Set(detectedSignals);
+    if (!survey.required_signal_types.every(s => det.has(s))) return false;
+  }
+  return true;
+}
+
+function applySurveyProgress(objId, objType, detectedSignals, conf) {
+  if (!state.active_survey_id) return null;
+  const survey = surveyMap[state.active_survey_id];
+  if (!survey) return null;
+  if (!matchesSurvey(survey, objType, detectedSignals, conf)) return null;
+
+  let prog = state.survey_progress[survey.id];
+  if (!prog) {
+    prog = { survey_id: survey.id, observations_completed: 0, discoveries_completed: 0, completed: false, claimed_reward: false, discovered_object_ids: [] };
+    state.survey_progress[survey.id] = prog;
+  }
+  if (prog.completed) return null;
+  if (prog.discovered_object_ids.includes(objId)) return null;
+
+  const mod = getEntityModifier();
+  let delta = 1;
+  if (survey.completion_goal >= 8 && (mod.survey_progress_bonus || 0) > 0) {
+    delta = 1 + mod.survey_progress_bonus;
+  }
+  prog.discovered_object_ids.push(objId);
+  prog.discoveries_completed = Math.min(survey.completion_goal, prog.discoveries_completed + delta);
+  if (prog.discoveries_completed >= survey.completion_goal && !prog.completed) {
+    prog.completed = true;
+    if (!prog.claimed_reward) {
+      const reward = effectiveSurveyReward(survey);
+      state.research_points += reward;
+      prog.claimed_reward = true;
+      return { type: 'completed', survey, reward };
+    }
+  }
+  return { type: 'progress', survey, done: prog.discoveries_completed, goal: survey.completion_goal };
+}
+
+function startSurvey(surveyId) {
+  const survey = surveyMap[surveyId];
+  if (!survey) return false;
+  const status = surveyStatus(survey);
+  if (status === 'locked' || status === 'completed') return false;
+  state.active_survey_id = surveyId;
+  if (!state.survey_progress[surveyId]) {
+    state.survey_progress[surveyId] = { survey_id: surveyId, observations_completed: 0, discoveries_completed: 0, completed: false, claimed_reward: false, discovered_object_ids: [] };
+  }
+  saveState();
+  return true;
+}
+
+function claimSurvey(surveyId) {
+  const survey = surveyMap[surveyId];
+  if (!survey) return false;
+  const prog = state.survey_progress[surveyId];
+  if (!prog || !prog.completed || prog.claimed_reward) return false;
+  state.research_points += effectiveSurveyReward(survey);
+  prog.claimed_reward = true;
+  saveState();
+  return true;
+}
+
+// ── Milestones (JS port) ──────────────────────────────────────────────
+const milestoneMap = {};
+MILESTONES.forEach(m => milestoneMap[m.id] = m);
+
+const DEFAULT_NAMED = 'Unnamed Research Entity';
+
+function hasDiscovery(typeSet, minConf) {
+  return Object.values(state.discoveries).some(d => typeSet.has(d.object_type) && d.confidence >= minConf);
+}
+function hasSignalInDiscoveries(sig) {
+  return Object.values(state.discoveries).some(d => (d.detected_signals || []).includes(sig));
+}
+
+function milestoneCondition(id) {
+  switch (id) {
+    case 'first_light': return state.turn >= 1 || Object.keys(state.discoveries).length > 0;
+    case 'named_entity': {
+      const n = (state.research_entity || {}).name || '';
+      return n && n !== DEFAULT_NAMED;
+    }
+    case 'first_planet': return hasDiscovery(new Set(['planet']), 0.75);
+    case 'first_moon': return hasDiscovery(new Set(['moon']), 0.75);
+    case 'first_comet': return hasDiscovery(new Set(['comet']), 0.5);
+    case 'first_upgrade': return state.unlocked_tiers.filter(t => t !== 'naked_eye').length >= 1;
+    case 'first_deep_field_ready': {
+      if (!state.unlocked_tiers.includes('space_optical')) return false;
+      const fl = state.survey_progress['local_sky_survey'];
+      if (fl && fl.completed) return true;
+      const solar = new Set(['star', 'planet', 'moon', 'asteroid', 'comet']);
+      return Object.values(state.discoveries).filter(d => solar.has(d.object_type) && d.confidence >= 0.5).length >= 8;
+    }
+    case 'radio_first_light': return state.known_signal_types.includes('radio') || hasSignalInDiscoveries('radio');
+    case 'first_deep_sky_object': return hasDiscovery(new Set(['galaxy', 'quasar', 'lyman_alpha_blob']), 0.5);
+    case 'first_black_hole_candidate': return hasDiscovery(new Set(['black_hole']), 0.5);
+    case 'first_magnetar': return hasDiscovery(new Set(['magnetar']), 0.75);
+    case 'multi_messenger_confirmation':
+      return Object.values(state.discoveries).some(d => (d.detected_signals || []).length >= 3 && d.confidence >= 0.75);
+    case 'cosmic_web_mapped': return hasDiscovery(new Set(['cosmic_web_filament', 'cosmic_web_node']), 0.75);
+    case 'dark_matter_inferred': return hasSignalInDiscoveries('dark_matter_inference');
+    case 'now_scope_first_light':
+      return hasSignalInDiscoveries('speculative_now_signal') ||
+        Object.values(state.discoveries).some(d => d.first_detected_tier === 'now_scope');
+    default: return false;
+  }
+}
+
+function evaluateMilestonesJS() {
+  const newly = [];
+  MILESTONES.forEach(m => {
+    const existing = state.milestones[m.id];
+    if (existing && existing.achieved) return;
+    if (!milestoneCondition(m.id)) return;
+    const rp = effectiveMilestoneReward(m);
+    state.milestones[m.id] = {
+      milestone_id: m.id,
+      achieved: true,
+      achieved_at_turn: state.turn,
+      reward_claimed: true,
+    };
+    state.research_points += rp;
+    newly.push({ milestone: m, rp });
+  });
+  if (newly.length > 0) saveState();
+  return newly;
 }
 
 // ── Object colors ─────────────────────────────────────────────────────
@@ -455,6 +689,9 @@ function renderHeader() {
   document.getElementById('h-rp').innerHTML = 'RP: <b>' + state.research_points + '</b>';
   document.getElementById('h-signals').innerHTML = 'Signals: <b>' + state.known_signal_types.length + '</b>';
   document.getElementById('h-discoveries').innerHTML = 'Discovered: <b>' + Object.keys(state.discoveries).length + '/' + SCENE.objects.length + '</b>';
+  const mod = getEntityModifier();
+  const hb = document.getElementById('h-background');
+  if (hb) hb.innerHTML = 'Background: <b>' + esc(mod.name) + '</b> — <span style="color:var(--dim)">' + esc(mod.description) + '</span>';
 }
 
 function displayName(obj) {
@@ -560,7 +797,8 @@ function renderTechTree() {
   TECH_TREE.forEach(tier => {
     const unlocked = state.unlocked_tiers.includes(tier.id);
     const available = !unlocked && tier.prerequisites.every(p => state.unlocked_tiers.includes(p));
-    const canAfford = state.research_points >= tier.research_cost;
+    const cost = effectiveTierCost(tier);
+    const canAfford = state.research_points >= cost;
     const active = state.active_telescope_tier === tier.id;
     let cls = 'tier-card';
     if (unlocked) cls += ' unlocked';
@@ -573,7 +811,7 @@ function renderTechTree() {
     if (tier.speculative) h += '<span class="spec-badge">SPECULATIVE</span>';
     if (active) h += '<span style="font-size:9px;color:var(--green);margin-left:6px">● ACTIVE</span>';
     h += `<div class="tier-meta">`;
-    if (!unlocked) h += `Cost: ${tier.research_cost} RP · `;
+    if (!unlocked) h += `Cost: ${cost} RP` + (cost !== tier.research_cost ? ` (base ${tier.research_cost})` : '') + ' · ';
     h += `Res: ${tier.resolution_arcsec}" · Sens: ${tier.sensitivity} · Range: ${tier.max_effective_distance_mpc} Mpc`;
     h += `</div>`;
     h += `<div class="tier-signals">`;
@@ -587,9 +825,9 @@ function renderTechTree() {
     }
     if (available) {
       if (canAfford) {
-        h += `<button class="btn" onclick="doUnlock('${esc(tier.id)}')">Unlock (${tier.research_cost} RP)</button>`;
+        h += `<button class="btn" onclick="doUnlock('${esc(tier.id)}')">Unlock (${cost} RP)</button>`;
       } else {
-        h += `<button class="btn" disabled>Need ${tier.research_cost - state.research_points} more RP</button>`;
+        h += `<button class="btn" disabled>Need ${cost - state.research_points} more RP</button>`;
       }
     }
     h += '</div>';
@@ -733,31 +971,137 @@ function mulberry32(a) {
 }
 
 // ── Actions ───────────────────────────────────────────────────────────
+function logSurveyEvent(ev) {
+  if (!ev) return;
+  if (ev.type === 'completed') {
+    addLog('Survey complete: ' + ev.survey.name + ' — +' + ev.reward + ' RP', 'log-unlock');
+  } else if (ev.type === 'progress') {
+    addLog('  ↳ ' + ev.survey.name + ': ' + ev.done + '/' + ev.goal, 'log-info');
+  }
+}
+
+function logMilestones(ms) {
+  ms.forEach(entry => {
+    const m = entry.milestone || entry;
+    const rp = entry.rp != null ? entry.rp : effectiveMilestoneReward(m);
+    const spec = m.speculative ? ' [SPECULATIVE]' : '';
+    addLog('Milestone: ' + m.name + spec + ' — +' + rp + ' RP', 'log-unlock');
+  });
+}
+
 function doObserve() {
   if (!selectedObjId) { addLog('Select an object first.', 'log-info'); return; }
+  state.turn = (state.turn || 0) + 1;
   const r = observeObject(selectedObjId);
-  if (!r) { addLog('No new data from this observation.', 'log-info'); return; }
+  if (!r) {
+    addLog('No new data from this observation.', 'log-info');
+    const ms = evaluateMilestonesJS();
+    logMilestones(ms);
+    saveState();
+    renderAll();
+    return;
+  }
   const tag = r.isNew ? 'log-new' : 'log-upgrade';
   const label = r.isNew ? 'NEW' : 'UPGRADED';
   let msg = `[${label}] ${r.obj.name} (${r.obj.type}) — ${r.label} ${Math.round(r.confidence * 100)}% — +${r.pts} RP`;
   if (r.isFirstOfType) msg = entityName() + ' confirmed first ' + r.obj.type + ': ' + r.obj.name + ' — +' + r.pts + ' RP';
   addLog(msg, tag);
+  logSurveyEvent(r.surveyEvent);
+  const ms = evaluateMilestonesJS();
+  logMilestones(ms);
+  saveState();
   renderAll();
 }
 
-function doSurvey() {
-  const results = observeAll();
-  if (results.length === 0) { addLog(entityName() + ': Survey complete — no new discoveries.', 'log-info'); return; }
-  let totalPts = 0;
-  results.forEach(r => {
-    totalPts += r.pts;
-    const tag = r.isNew ? 'log-new' : 'log-upgrade';
-    let msg = r.obj.name + ' — ' + r.label + ' ' + Math.round(r.confidence * 100) + '% — +' + r.pts + ' RP';
-    if (r.isFirstOfType) msg = entityName() + ' confirmed first ' + r.obj.type + ': ' + r.obj.name;
-    addLog(msg, tag);
+const _SOLAR_TYPES_JS = new Set(['star', 'planet', 'moon', 'asteroid', 'comet']);
+function _followupRpJs(t) {
+  if (_SOLAR_TYPES_JS.has(t)) return 1;
+  const m = { galaxy: 3, quasar: 4, lyman_alpha_blob: 5, black_hole: 4, magnetar: 4, speculative_anomaly: 5 };
+  return m[t] || 3;
+}
+function applyFollowupPass(primaryIds) {
+  if (!state.followup_observation_counts) state.followup_observation_counts = {};
+  if (!state.last_observation_tier_by_object) state.last_observation_tier_by_object = {};
+  let total = 0;
+  const mod = getEntityModifier();
+  SCENE.objects.forEach(obj => {
+    if (primaryIds.has(obj.id)) {
+      state.last_observation_tier_by_object[obj.id] = state.active_telescope_tier;
+      return;
+    }
+    const prev = state.discoveries[obj.id];
+    if (!prev || prev.confidence < 0.5) return;
+    const count = state.followup_observation_counts[obj.id] || 0;
+    const tierChanged = state.last_observation_tier_by_object[obj.id] !== state.active_telescope_tier;
+    if (prev.confidence >= 0.95 && !tierChanged) return;
+    if (count >= 2 && !tierChanged) return;
+    const rp = Math.max(1, Math.min(5, Math.round(_followupRpJs(obj.type) * mod.discovery_rp_multiplier)));
+    state.followup_observation_counts[obj.id] = count + 1;
+    state.last_observation_tier_by_object[obj.id] = state.active_telescope_tier;
+    state.research_points += rp;
+    prev.research_points_earned = (prev.research_points_earned || 0) + rp;
+    total += rp;
+    addLog('Follow-up: ' + obj.name + ' — +' + rp + ' RP (diminishing returns)', 'log-info');
   });
-  addLog(entityName() + ' survey complete: ' + results.length + ' objects, +' + totalPts + ' RP total', 'log-info');
+  return total;
+}
+let _lastGuidanceKey = '';
+function showGuidanceHints() {
+  const hints = [];
+  const solar = SCENE.id === 'solar-system';
+  const targets = SCENE.objects.filter(o => _SOLAR_TYPES_JS.has(o.type));
+  const done = targets.filter(o => state.discoveries[o.id] && state.discoveries[o.id].confidence >= 0.5).length;
+  const exhausted = solar && targets.length && done / targets.length >= 0.8;
+  const hasSpace = state.unlocked_tiers.includes('space_optical');
+  if (exhausted && hasSpace) hints.push('deep_field_ready');
+  if (exhausted && !hasSpace) hints.push('need_upgrade');
+  if ((state.consecutive_no_rp_turns || 0) >= 3) hints.push('no_rp');
+  const key = hints.join(',');
+  if (key && key !== _lastGuidanceKey) {
+    _lastGuidanceKey = key;
+    if (hints.includes('deep_field_ready')) {
+      addLog('Guidance: Local sky mostly catalogued — generate scene-001 for deep-field science.', 'log-unlock');
+    } else if (hints.includes('need_upgrade')) {
+      addLog('Guidance: Upgrade toward space_optical or finish surveys for more RP.', 'log-info');
+    } else if (hints.includes('no_rp')) {
+      addLog('Guidance: Try Scene 001, a new survey, or follow-up observations on known targets.', 'log-info');
+    }
+  }
+}
+
+function doSurvey() {
+  state.turn = (state.turn || 0) + 1;
+  const rpBefore = state.research_points;
+  const results = observeAll();
+  const primaryIds = new Set(results.map(r => r.obj.id));
+  const surveyEvents = [];
+  if (results.length === 0) {
+    addLog(entityName() + ': Survey complete — no new discoveries.', 'log-info');
+  } else {
+    let totalPts = 0;
+    results.forEach(r => {
+      totalPts += r.pts;
+      const tag = r.isNew ? 'log-new' : 'log-upgrade';
+      let msg = r.obj.name + ' — ' + r.label + ' ' + Math.round(r.confidence * 100) + '% — +' + r.pts + ' RP';
+      if (r.isFirstOfType) msg = entityName() + ' confirmed first ' + r.obj.type + ': ' + r.obj.name;
+      addLog(msg, tag);
+      if (r.surveyEvent) surveyEvents.push(r.surveyEvent);
+    });
+    addLog(entityName() + ' survey complete: ' + results.length + ' objects, +' + totalPts + ' RP total', 'log-info');
+  }
+  // Emit one survey-progress message per active-survey contribution; only the
+  // last 'completed' event matters for log clarity.
+  const completed = surveyEvents.find(e => e.type === 'completed');
+  if (completed) logSurveyEvent(completed);
+  const followupTotal = applyFollowupPass(primaryIds);
+  if (typeof state.consecutive_no_rp_turns !== 'number') state.consecutive_no_rp_turns = 0;
+  state.consecutive_no_rp_turns = (state.research_points === rpBefore && followupTotal === 0)
+    ? state.consecutive_no_rp_turns + 1 : 0;
+  const ms = evaluateMilestonesJS();
+  logMilestones(ms);
+  saveState();
   renderAll();
+  showGuidanceHints();
 }
 
 function doUnlock(tierId) {
@@ -765,6 +1109,26 @@ function doUnlock(tierId) {
   if (!tier) return;
   if (unlockTier(tierId)) {
     addLog(entityName() + ' unlocked: ' + tier.name + (tier.speculative ? ' [SPECULATIVE]' : ''), 'log-unlock');
+    const ms = evaluateMilestonesJS();
+    logMilestones(ms);
+    saveState();
+    renderAll();
+  }
+}
+
+function doStartSurvey(surveyId) {
+  if (startSurvey(surveyId)) {
+    const s = surveyMap[surveyId];
+    addLog(entityName() + ' started survey: ' + s.name, 'log-info');
+    renderAll();
+  }
+}
+
+function doClaimSurvey(surveyId) {
+  if (claimSurvey(surveyId)) {
+    const s = surveyMap[surveyId];
+    const cr = effectiveSurveyReward(s);
+    addLog('Claimed reward for ' + s.name + ' — +' + cr + ' RP', 'log-unlock');
     renderAll();
   }
 }
@@ -773,6 +1137,7 @@ function doReset() {
   if (!confirm('Reset all progress for ' + entityName() + '? This cannot be undone.')) return;
   localStorage.removeItem(STORAGE_KEY);
   state = JSON.parse(JSON.stringify(INIT_STATE));
+  ensureSurveyMilestoneFields();
   firstDiscoveryCount = 0;
   firstTypesSeen = new Set();
   selectedObjId = null;
@@ -852,6 +1217,83 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   };
 });
 
+// ── Surveys / milestones renderers ────────────────────────────────────
+function renderSurveys() {
+  const el = document.getElementById('tab-surveys');
+  let h = '<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Survey Programs</div>';
+  SURVEYS.forEach(s => {
+    const status = surveyStatus(s);
+    const prog = state.survey_progress[s.id];
+    const done = prog ? prog.discoveries_completed : 0;
+    let cls = 'tier-card';
+    if (status === 'completed') cls += ' unlocked';
+    else if (status === 'active') cls += ' available';
+    else if (status === 'available') cls += '';
+    else cls += ' locked';
+    if (s.speculative) cls += ' speculative';
+    h += `<div class="${cls}">`;
+    h += `<span class="tier-name">${esc(s.name)}</span>`;
+    if (s.speculative) h += '<span class="spec-badge">SPECULATIVE</span>';
+    if (status === 'active') h += '<span style="font-size:9px;color:var(--accent);margin-left:6px">▶ ACTIVE</span>';
+    if (status === 'completed') h += '<span style="font-size:9px;color:var(--green);margin-left:6px">✓ COMPLETED</span>';
+    const rew = effectiveSurveyReward(s);
+    const rewLabel = rew === s.reward_research_points ? `+${rew} RP` : `+${rew} RP (base ${s.reward_research_points})`;
+    h += `<div class="tier-meta">Goal: ${done}/${s.completion_goal} · Reward: ${rewLabel}</div>`;
+    h += `<div style="font-size:10px;color:var(--dim);margin-top:4px">${esc(s.description)}</div>`;
+    if (s.required_tier_ids.length) {
+      h += `<div style="font-size:9px;color:var(--dim);margin-top:3px">requires tiers: ${esc(s.required_tier_ids.join(', '))}</div>`;
+    }
+    if (s.required_signal_types.length) {
+      h += `<div style="font-size:9px;color:var(--dim)">requires signals: ${esc(s.required_signal_types.join(', '))}</div>`;
+    }
+    if (s.flavor) h += `<div style="font-size:10px;font-style:italic;color:var(--dim);margin-top:4px">"${esc(s.flavor)}"</div>`;
+    if (status === 'available') {
+      h += `<button class="btn" onclick="doStartSurvey('${esc(s.id)}')">Start Survey</button>`;
+    }
+    if (status === 'completed' && prog && !prog.claimed_reward) {
+      const cr = effectiveSurveyReward(s);
+      h += `<button class="btn" onclick="doClaimSurvey('${esc(s.id)}')">Claim +${cr} RP</button>`;
+    }
+    h += '</div>';
+  });
+  el.innerHTML = h;
+}
+
+function renderMilestones() {
+  const el = document.getElementById('tab-milestones');
+  const achieved = MILESTONES.filter(m => state.milestones[m.id] && state.milestones[m.id].achieved);
+  const remaining = MILESTONES.filter(m => !(state.milestones[m.id] && state.milestones[m.id].achieved));
+  let h = '';
+  h += `<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Achieved (${achieved.length}/${MILESTONES.length})</div>`;
+  if (achieved.length === 0) {
+    h += '<div style="font-size:11px;color:var(--dim);margin-bottom:10px">No milestones yet — observe something.</div>';
+  }
+  achieved.forEach(m => {
+    const spec = m.speculative ? '<span class="spec-badge">SPECULATIVE</span>' : '';
+    const er = effectiveMilestoneReward(m);
+    const rl = er === m.reward_research_points ? `+${er} RP` : `+${er} RP (base ${m.reward_research_points})`;
+    h += `<div class="tier-card unlocked">`;
+    h += `<span class="tier-name" style="color:var(--green)">✓ ${esc(m.name)}</span>${spec}`;
+    h += `<div style="font-size:10px;color:var(--dim);margin-top:3px">${esc(m.description)}</div>`;
+    h += `<div class="tier-meta">${rl} awarded</div>`;
+    h += '</div>';
+  });
+  h += `<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin:12px 0 6px">Remaining</div>`;
+  remaining.forEach(m => {
+    const spec = m.speculative ? '<span class="spec-badge">SPECULATIVE</span>' : '';
+    let cls = 'tier-card locked';
+    if (m.speculative) cls += ' speculative';
+    const er = effectiveMilestoneReward(m);
+    const rl = er === m.reward_research_points ? `+${er} RP` : `+${er} RP (base ${m.reward_research_points})`;
+    h += `<div class="${cls}">`;
+    h += `<span class="tier-name">${esc(m.name)}</span>${spec}`;
+    h += `<div style="font-size:10px;color:var(--dim);margin-top:3px">${esc(m.description)}</div>`;
+    h += `<div class="tier-meta">Reward: ${rl}</div>`;
+    h += '</div>';
+  });
+  el.innerHTML = h;
+}
+
 // ── Wire up ───────────────────────────────────────────────────────────
 document.getElementById('btn-observe').onclick = doObserve;
 document.getElementById('btn-survey').onclick = doSurvey;
@@ -863,17 +1305,24 @@ function renderAll() {
   renderObjectList();
   renderDetail();
   renderTechTree();
+  renderSurveys();
+  renderMilestones();
   renderSkyMap();
+  showGuidanceHints();
 }
 
 window.addEventListener('resize', renderSkyMap);
 
 ensureEntity();
+ensureSurveyMilestoneFields();
 if (needsNaming()) {
   showNaming();
 } else {
+  // Re-evaluate milestones on load — handles named_entity for state imported via CLI
+  const ms = evaluateMilestonesJS();
   renderAll();
   addLog(entityName() + ' observatory console initialized.', 'log-info');
+  logMilestones(ms);
 }
 </script>
 </body>

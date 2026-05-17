@@ -25,7 +25,7 @@ The entity name appears in:
 | `corporate_research_division` | Corporate Research Division |
 | `custom` | Custom |
 
-Entity type is flavor only. It has no mechanical effect.
+Entity type selects a **small mechanical modifier** (discovery RP, tier costs, survey/milestone payouts, optional confidence nudge). Effects are intentionally subtle — see [Entity backgrounds](entity-backgrounds.md).
 
 ## Naming from CLI
 
@@ -65,12 +65,14 @@ Random names are drawn from a curated list of fun research organization names.
 
 ## Where identity appears
 
-- **CLI `game status`:** Entity name, type, and motto shown at top
-- **CLI `game observe`:** Entity name used in discovery messages
-- **CLI `game report`:** Entity name, type, and motto in report header
+- **CLI `game status`:** Entity name, type, motto, turn, survey/milestone counts
+- **CLI `game observe`:** Entity name used in discovery, survey, and milestone messages
+- **CLI `game surveys` / `game milestones`:** Section headers carry the entity name
+- **CLI `game report`:** Entity name, type, and motto in report header; surveys and milestones included as sections
 - **Telescope UI header:** Entity name replaces generic "Observatory Console"
-- **Telescope UI discovery log:** Entity name used for first-of-type discoveries, survey summaries, and upgrade messages
+- **Telescope UI discovery log:** Entity name used for first-of-type discoveries, survey starts, milestone awards, and upgrade messages
 - **Exported game state JSON:** `research_entity` field with all entity data
+- **Milestone:** Naming the entity (anything other than the default) triggers the `named_entity` Founding Charter milestone (+5 RP)
 
 ## Backward compatibility
 

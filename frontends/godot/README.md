@@ -1,22 +1,178 @@
-# Godot Frontend
+# Godot 4 Telescope Frontend (Prototype)
 
-**Status:** Not yet implemented. This directory is a placeholder for future Godot integration.
+A real, runnable Godot 4 frontend for the `universe` telescope game.
+This prototype consumes the Python project's canonical scene/state JSON,
+renders a legible 3D representation, and exposes the full observe →
+discover → survey → milestone loop.
 
-## Intended architecture
+## Status
 
-A Godot 4.x scene importer that reads `scene.json` and creates engine-native nodes:
+- ✅ Loads `scene.json` and `game-state.json` from the parent repo
+- ✅ Renders solar-system (log-radial AU layout) and **deep-field** scenes (Mpc positions normalized by `size_mpc`, cosmic-web nodes, filaments through **control points** as thin cylinders, layered LAB shells, quasar jets, black-hole accretion torus placeholder, CMB shell)
+- ✅ **3D picking** — click spheres in the viewport (ray + `Area3D`); selection syncs with list + detail + log
+- ✅ **Telescope camera** — orbit, zoom, pan, **F** focus selection, **R** reset, **L** toggles labels (checkbox + hotkey)
+- ✅ **Signal visualization modes** — palette + emphasize/dim by instrument (from `discovery_requirements.json` + heuristics)
+- ✅ **Discovery visuals** — materials reflect confidence band; selected object gets a highlight pass
+- ✅ Observatory console UI (header, object list, detail, tech tree, surveys, milestones, log, reset + export JSON)
+- ✅ Save/load game state (repo path with `user://game-state.json` fallback; path shown in header)
+- ✅ Tech-tree unlocks, survey progression, milestone evaluation
+- ⚠ Visual polish is intentionally minimal — clarity over beauty
 
-- Cosmic web filaments → Path3D + CSGPolygon3D or procedural ArrayMesh
-- Lyman-alpha blob → FogVolume with custom VolumetricFog shader
-- Quasar → OmniLight3D + GPUParticles3D for jets
-- Black hole → MeshInstance3D with screen-space lensing shader
-- Galaxies → MultiMeshInstance3D
-- Magnetar → MeshInstance3D + GPUParticles3D burst
+The Python CLI and the static HTML telescope UI remain canonical.
 
-See `docs/import-planning.md` for detailed mapping and implementation notes.
+## Project layout
 
-## Prerequisites
+```
+frontends/godot/
+  project.godot
+  icon.svg
+  scenes/
+    Main.tscn            ← entry scene (just hosts Main.gd)
+  scripts/
+    Main.gd              ← orchestrator: loads data, builds 3D + UI
+    FilePaths.gd         ← autoload: resolves scene/state paths
+    SceneLoader.gd       ← scene.json loader + minimal validation
+    GameState.gd         ← state JSON load/save + backward-compat
+    TechTree.gd          ← derive aggregate telescope capabilities
+    DiscoveryEngine.gd   ← confidence + RP award (mirrors Python)
+    SurveyEngine.gd      ← survey status / start / claim / progress
+    MilestoneEngine.gd   ← milestone predicates + auto-claim
+    SkyRenderer.gd       ← Node3D builder, pick areas, labels, signal-mode visuals
+    TelescopeCamera.gd   ← orbit / zoom / pan / pick-threshold camera
+    TelescopeConsole.gd  ← CanvasLayer UI overlay
+  data/
+    *.json               ← committed copy of `game export-godot-data`
+  assets/
+    README.md            ← placeholder for future binary assets
+```
 
-- Godot 4.x
-- GDScript or C# importer
-- JSON parsing (built-in via `JSON` class)
+## Quickstart
+
+1. Generate the Python-side data once:
+
+    ```bash
+    uv sync
+    uv run universe generate solar-system --seed local-sky --out data/generated/solar-system
+    uv run universe game init \
+      --name "Hydrogen Ghost Institute" \
+      --entity-type private_institute \
+      --motto "Listening for the old light." \
+      --out data/generated/game-state.json
+    uv run universe game start-survey \
+      --state data/generated/game-state.json \
+      --survey local_sky_survey \
+      --out data/generated/game-state.json
+    uv run universe game export-godot-data --out frontends/godot/data
+    ```
+
+2. Open `frontends/godot/project.godot` in Godot 4.x (any 4.2+).
+
+3. Press **F5** to run. The default main scene (`scenes/Main.tscn`) loads
+   the solar-system scene and your game state automatically.
+
+### Switching to Scene 001 (deep field)
+
+Generate the deep-field scene from the repo root, then point Godot at it:
+
+```bash
+uv run universe generate scene-001 --seed lyman-alpha-furnace --out data/generated/scene-001
+```
+
+Use absolute paths in `user://overrides.json` (via *Project → Open User Data Folder*):
+
+```json
+{
+  "scene_path": "/ABS/PATH/TO/universe/data/generated/scene-001/scene.json",
+  "state_path": "/ABS/PATH/TO/universe/data/generated/game-state.json"
+}
+```
+
+Restart the game or press **Reload Scene/State** after editing overrides.
+
+## Controls (viewport + console)
+
+| Control | Action |
+|--------|--------|
+| Click object (tap, no drag) | Select object in 3D |
+| Mouse wheel | Zoom in / out |
+| Left or right drag | Orbit around focus target |
+| Middle drag, or Shift + left drag | Pan |
+| **F** | Focus camera on selected object |
+| **R** | Reset camera |
+| **L** | Toggle object labels |
+| **+** / **-** (or keypad) | Zoom |
+
+## Configuring data paths
+
+By default the Godot project reads:
+
+- scene: `frontends/godot/../../data/generated/solar-system/scene.json`
+- state: `frontends/godot/../../data/generated/game-state.json`
+
+To point at different files without editing scripts, drop a JSON file at
+`user://overrides.json`:
+
+```json
+{
+  "scene_path": "/abs/path/to/scene.json",
+  "state_path": "/abs/path/to/game-state.json"
+}
+```
+
+The `user://` directory is shown in Godot's *Project → Open User Data
+Folder* menu.
+
+## Saving state
+
+Press **Save State** in the console. Success or failure is written to the
+discovery log. The engine prefers the path it loaded (`_state_path`); if that
+path is not writable, it saves to `user://game-state.json` and updates the
+in-memory path so the next save goes to the same fallback. The header shows
+**Scene** and **Last save** paths.
+
+**Reset State…** clears progress to a fresh in-memory state (with a confirm
+dialog); use **Save State** to persist. **Export State…** opens a window with
+the current JSON (copy-friendly).
+
+## What lives where
+
+| Concern | Source of truth |
+|---|---|
+| Scene generation | Python (`src/universe/procedural/`) |
+| Game definitions (tiers, surveys, milestones, requirements) | Python — exported as JSON to `data/` |
+| Game-state schema | Python (`ResearchState`) |
+| Discovery / survey / milestone *rules* | Mirrored in GDScript; treat Python as canonical when they diverge |
+| 3D rendering | Godot |
+| Console UI | Godot |
+
+When Python rules change, regenerate the data bundle and (if rules
+themselves changed) update the matching GDScript engine.
+
+## Limitations
+
+- GDScript discovery engine is a subset of Python; treat CLI as canonical when in doubt.
+- No automated Godot runtime tests in CI (Python tests cover export + script/doc markers).
+- Solar-system layout uses coarse logarithmic compression in world space.
+- Deep-field polish is **prototype legibility**, not a cinematic renderer: LAB is nested translucent shells with a gentle emission pulse; filaments are segmented cylinders; quasars use deterministic jet axes from object ids.
+- Arrow / WASD camera nudges are not implemented (mouse + keys above only).
+- `now-scope` content uses the same primitives; speculative tiers are labelled in UI.
+
+## Scene 001 manual test checklist (Godot)
+
+After `uv run universe generate scene-001 …` and `user://overrides.json` with absolute paths to `scene-001/scene.json` and `game-state.json`, press **Reload Scene/State** and verify:
+
+1. Header shows **Deep Field · High-z protocluster**, redshift **z**, and region **cMpc**.
+2. Initial camera frames the protocluster / LAB neighborhood (not collapsed at origin).
+3. **LAB** reads as a large translucent multi-shell blob with subtle pulse; **Ultraviolet** signal mode boosts it.
+4. **Quasar** has a bright core and bipolar jets; **Radio** boosts jets, **X-ray** boosts core emphasis vs LAB.
+5. **Black hole** is a dark core with a faint accretion ring; almost invisible in **Visible light** until inference modes.
+6. **Magnetar** is compact with faint torus “field” placeholders; **X-ray / Gamma** favor it.
+7. **Filaments** follow graph control points (not only node–node); **Weak lensing** / **Dark matter inference** brighten them; labels stay sparse until confidence/selection.
+8. **Survey hint** appears when no survey is active (suggests Deep Field / Radio / Compact programs when unlocked).
+9. Object list **filter** (All / Unknown / …) narrows the list without breaking selection metadata.
+
+## See also
+
+- `docs/godot-frontend.md` — design notes and data contract
+- `docs/import-planning.md` — original Unreal/Godot mapping notes
+- `docs/telescope-ui.md` — the static HTML UI prototype

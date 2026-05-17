@@ -10,10 +10,7 @@ There is no spaceship. The viewpoint is always a telescope or observatory interf
 
 At game start, the player names their Research Entity. This identity appears throughout the game — in status displays, discovery logs, reports, and the telescope UI header.
 
-Entity types (flavor only, no mechanical effect):
-- Backyard Observatory, University Lab, National Observatory, Private Institute, Orbital Consortium, AI Research Bureau, Citizen Science Network, Occult Sky Society, Corporate Research Division, Custom.
-
-See `docs/research-entity.md` for full documentation.
+Entity types map to **small mechanical modifiers** (tier costs, discovery and survey/milestone RP, optional confidence nudge). See `docs/entity-backgrounds.md` and `docs/research-entity.md`.
 
 ## Core loop
 
@@ -46,8 +43,31 @@ Points are earned by:
 - Confirming a candidate to higher confidence (+bonus)
 - Characterizing an object fully (+completion bonus)
 - Discovering objects requiring multi-messenger observations (+difficulty bonus)
+- Completing survey programs (one-time reward per program)
+- Achieving milestones (one-time reward per milestone)
 
 Points are spent to unlock telescope tiers.
+
+## Survey programs
+
+Surveys are named, prerequisite-gated research campaigns — *Local Sky
+Survey*, *Planetary Census*, *Deep Field Survey*, *Multi-Messenger Event
+Program*, etc. Each campaign has a target list, a goal count, and a
+research-point reward credited on completion. Only one survey is active at
+a time; switching is free. Surveys provide medium-term direction without
+forcing the player off their current ad-hoc observations.
+
+See `docs/survey-programs.md` for the full catalog.
+
+## Milestones
+
+Milestones recognize meaningful firsts — first planet confirmed, first
+black-hole candidate, first multi-messenger confirmation, first dark-matter
+inference. They are auto-claimed and award a one-time research-point
+bonus, with a clearly labelled speculative tier (Now-Scope First Light)
+gated behind the speculative now-scope.
+
+See `docs/milestones.md` for the full catalog.
 
 ## Scientific vs speculative content
 
@@ -89,9 +109,15 @@ uv run universe game export-ui \
 
 See `docs/telescope-ui.md` for full documentation.
 
+## Balance playtesting
+
+Deterministic autoplay scenarios measure RP pacing, tier unlocks, surveys, and milestones across entity types. Python is canonical; see [balance-playtesting.md](balance-playtesting.md).
+
 ## Future directions
 
 - Enhanced telescope UI (signal mode switching, import state, animations)
+- Survey queues, repeatable observation campaigns
+- Frontend export of manual playtest logs compatible with `PlaytestEvent`
 - Unreal/Godot rendering frontends
 - Time-domain events (supernovae, GRBs, magnetar flares)
 - Catalog comparison (player discoveries vs real survey data)

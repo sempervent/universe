@@ -18,6 +18,7 @@ from universe.procedural.objects import (
     generate_lyman_alpha_blob,
     generate_magnetar,
     generate_quasar_system,
+    generate_speculative_anomaly,
     generate_void,
 )
 from universe.units import SCENE_001_REDSHIFT, SCENE_001_REGION_SIZE_MPC
@@ -53,8 +54,9 @@ def generate_scene_001(
 
     cmb = generate_cmb_background(redshift)
     voids = [generate_void(seed, region_size, redshift, i) for i in range(2)]
+    anomaly = generate_speculative_anomaly(seed, redshift)
 
-    all_objects = [lab, quasar, black_hole, magnetar, cmb] + voids + galaxies
+    all_objects = [lab, quasar, black_hole, magnetar, cmb, anomaly] + voids + galaxies
 
     return SceneRegion(
         id="scene-001",
@@ -80,6 +82,25 @@ def generate_scene_001(
                 "Redshift perturbations are cosmetic, not from peculiar velocities.",
                 "Lyman-alpha blob luminosity is representative, not radiative-transfer modeled.",
             ],
+            scene_class="deep_field",
+            recommended_camera_target_object_id=lab.id,
+            recommended_initial_signal_mode="visible_light",
+            featured_object_ids=[
+                lab.id,
+                quasar.id,
+                black_hole.id,
+                magnetar.id,
+                host_galaxy.id,
+                anomaly.id,
+            ],
+            teaching_summary=(
+                "Scene 001 is a deep-field protocluster: use signal modes to stress "
+                "different physics (radio jets, X-ray accretion, weak lensing structure). "
+                "LAB rendering is a false-color placeholder, not a radiative-transfer volume."
+            ),
+            scale_description=(
+                "Comoving positions in Mpc; Godot normalizes by scene size_mpc for navigation."
+            ),
         ),
         visual_modes=[m.value for m in VisualMode],
     )

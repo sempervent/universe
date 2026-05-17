@@ -21,3 +21,14 @@ coverage.xml
 # Generated scene data
 data/generated/*
 !data/generated/.gitkeep
+
+# Unreal Engine generated artifacts (frontends/unreal/)
+frontends/unreal/Binaries/
+frontends/unreal/Intermediate/
+frontends/unreal/Saved/
+frontends/unreal/DerivedDataCache/
+frontends/unreal/.vs/
+frontends/unreal/*.sln
+frontends/unreal/.idea/
+frontends/unreal/Data/*
+!frontends/unreal/Data/README.md

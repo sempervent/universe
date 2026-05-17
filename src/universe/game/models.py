@@ -11,6 +11,8 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 from universe.game.entity import ResearchEntity
+from universe.game.milestones import MilestoneRecord
+from universe.game.surveys import SurveyProgress
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +129,19 @@ class ResearchState(BaseModel):
     known_signal_types: list[str] = Field(default_factory=lambda: ["visible_light"])
     discoveries: dict[str, DiscoveryRecord] = Field(default_factory=dict)
     research_entity: ResearchEntity = Field(default_factory=ResearchEntity)
+
+    # ── Survey programs ───────────────────────────────────────────────
+    active_survey_id: str | None = None
+    survey_progress: dict[str, SurveyProgress] = Field(default_factory=dict)
+
+    # ── Milestones / progression bookkeeping ─────────────────────────
+    milestones: dict[str, MilestoneRecord] = Field(default_factory=dict)
+    turn: int = 0
+
+    # ── Follow-up / pacing bookkeeping ───────────────────────────────
+    followup_observation_counts: dict[str, int] = Field(default_factory=dict)
+    last_observation_tier_by_object: dict[str, str] = Field(default_factory=dict)
+    consecutive_no_rp_turns: int = 0
 
     @property
     def discovered_object_ids(self) -> set[str]:

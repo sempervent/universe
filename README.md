@@ -23,8 +23,15 @@ The project produces an engine-agnostic JSON scene format, a browser-previewable
 - Signal-based discovery engine with confidence levels.
 - Research point progression and instrument upgrades.
 - Multi-messenger astronomy bonus for combining signal types.
-- CLI commands for the full observe→discover→upgrade loop.
-- Browser-playable telescope UI with naming flow, sky map, tech tree, and discovery log.
+- 10 survey programs as named, prerequisite-gated research campaigns.
+- 14 milestones recognizing meaningful firsts in the entity's history.
+- CLI commands for the full observe→discover→upgrade loop, plus survey/milestone management.
+- Deterministic balance playtests (`game playtest`, `playtest-matrix`, `balance-report`) — see [balance playtesting](docs/balance-playtesting.md).
+- Browser-playable telescope UI with naming flow, sky map, tech tree, surveys, milestones, and discovery log.
+
+**Engine frontends:**
+- **Godot 4 prototype** (`frontends/godot/`) — playable telescope game on `scene.json` / `game-state.json` (see `docs/godot-frontend.md`).
+- **Unreal Engine 5 prototype** (`frontends/unreal/`) — cinematic Scene 001 renderer: JSON import, signal modes, telescope camera, HUD inspector (see `docs/unreal-frontend.md`). No full game port.
 
 ## Quickstart — Scene generation
 
@@ -58,11 +65,23 @@ uv run universe game init \
   --motto "Listening for the old light." \
   --out data/generated/game-state.json
 
-# Observe the solar system (earn research points)
+# List available survey programs
+uv run universe game surveys --state data/generated/game-state.json
+
+# Activate the Local Sky Survey
+uv run universe game start-survey \
+  --state data/generated/game-state.json \
+  --survey local_sky_survey \
+  --out data/generated/game-state.json
+
+# Observe the solar system (earn research points + survey progress + milestones)
 uv run universe game observe \
   --scene data/generated/solar-system/scene.json \
   --state data/generated/game-state.json \
   --out data/generated/game-state.json
+
+# List milestones
+uv run universe game milestones --state data/generated/game-state.json
 
 # Check status
 uv run universe game status --state data/generated/game-state.json
@@ -88,6 +107,24 @@ uv run universe game report \
   --out data/generated/game-report.md
 ```
 
+## Quickstart — Balance playtesting
+
+```bash
+uv run universe game playtest \
+  --scenario solar_tutorial_basic \
+  --entity-type backyard_observatory \
+  --seed local-sky \
+  --out data/generated/playtests/solar_tutorial_basic_backyard.json
+
+uv run universe game playtest-matrix --out data/generated/playtests/matrix
+
+uv run universe game balance-report \
+  --input data/generated/playtests/matrix \
+  --out data/generated/playtests/balance-report.md
+```
+
+See [docs/balance-playtesting.md](docs/balance-playtesting.md).
+
 ## Quickstart — Telescope UI (browser game)
 
 ```bash
@@ -103,9 +140,40 @@ The telescope UI is a self-contained HTML file with the observatory console — 
 
 See [Telescope UI docs](docs/telescope-ui.md) for details.
 
-## What is intentionally not implemented yet
+## Quickstart — Godot 4 frontend (prototype)
 
-- Unreal/Godot rendering frontends (scaffolded only — see `frontends/`).
+```bash
+# 1. Generate scene + state (as above)
+uv run universe generate solar-system --seed local-sky --out data/generated/solar-system
+uv run universe game init \
+  --name "Hydrogen Ghost Institute" \
+  --entity-type private_institute \
+  --motto "Listening for the old light." \
+  --out data/generated/game-state.json
+
+# 2. Export the Godot data bundle (tech tree, surveys, milestones, requirements)
+uv run universe game export-godot-data --out frontends/godot/data
+
+# 3. Open the project in Godot 4.x and press F5
+#    frontends/godot/project.godot
+```
+
+The Godot project consumes the same canonical JSON. See
+[Godot frontend docs](docs/godot-frontend.md).
+
+### Unreal Engine (cinematic prototype)
+
+```bash
+uv run universe generate scene-001 --seed lyman-alpha-furnace --out data/generated/scene-001
+uv run universe game export-unreal-data \
+  --scene data/generated/scene-001/scene.json \
+  --out frontends/unreal/Data
+# Open frontends/unreal/Universe.uproject in UE 5.4+, compile, place AUniverseSceneActor, Play
+```
+
+See [Unreal frontend docs](docs/unreal-frontend.md).
+
+## What is intentionally not implemented yet
 - Real N-body cosmological simulation.
 - Volumetric rendering, gravitational lensing, relativistic jet particles.
 - Time-domain events (supernovae, GRBs, magnetar flares).
@@ -133,10 +201,15 @@ src/universe/
     entity.py            # Research Entity model, types, random names
     tech_tree.py         # 12-tier telescope progression
     discovery.py         # Detection rules, confidence, research points
+    surveys.py           # Survey programs (named research campaigns)
+    milestones.py        # Milestones / achievements
     telescope_ui.py      # Static HTML telescope UI generator
 tests/                   # pytest test suite
 docs/                    # Architecture, science model, game design, roadmap
-frontends/               # Placeholder frontend docs (Unreal, Godot, Web)
+frontends/
+  godot/                 # Playable Godot 4 telescope frontend
+  unreal/                # Cinematic Unreal 5 Scene 001 prototype
+  web/                   # Web frontend notes
 data/generated/          # Generated artifacts (gitignored)
 ```
 
@@ -156,7 +229,12 @@ data/generated/          # Generated artifacts (gitignored)
 - [Discovery Loop](docs/discovery-loop.md)
 - [Instrument Model](docs/instrument-model.md)
 - [Research Entity](docs/research-entity.md)
+- [Entity backgrounds (modifiers)](docs/entity-backgrounds.md)
+- [Survey Programs](docs/survey-programs.md)
+- [Milestones](docs/milestones.md)
 - [Telescope UI](docs/telescope-ui.md)
+- [Godot Frontend](docs/godot-frontend.md)
+- [Unreal Frontend](docs/unreal-frontend.md)
 - [Roadmap](docs/roadmap.md)
 
 ## License

@@ -31,6 +31,8 @@ multi_messenger_bonus = 0.1 * number_of_independent_signal_types_beyond_required
 final_confidence = min(1.0, base_confidence + multi_messenger_bonus)
 ```
 
+Some **entity backgrounds** (e.g. AI Research Bureau) add a small **confidence bonus** only after the object is already detectable (positive confidence); they cannot force a detection from nothing.
+
 ## Research points
 
 Points are awarded based on:
@@ -61,8 +63,16 @@ Bonuses:
 3. Game evaluates each object in the scene against current capabilities.
 4. New detections are reported with confidence levels.
 5. Research points are awarded for new/upgraded detections.
-6. Player spends points to unlock new telescope tiers.
-7. With new instruments, previously invisible objects become detectable.
+6. The active survey program (if any) is advanced. Surveys auto-complete
+   and credit their reward when their goal count is reached.
+7. Milestones are evaluated and any newly-satisfied conditions credit
+   their one-time reward.
+8. Player spends points to unlock new telescope tiers.
+9. With new instruments, previously invisible objects become detectable.
+
+Surveys and milestones never alter the discovery rules themselves — they
+sit on top of the loop and turn discoveries into structured progression.
+See `docs/survey-programs.md` and `docs/milestones.md`.
 
 ## Multi-messenger astronomy
 
@@ -73,6 +83,10 @@ The key mid-to-late-game mechanic. Examples:
 - **Cosmic web filament:** Galaxy survey (Tier 3) + weak lensing (Tier 10) + radio neutral hydrogen (Tier 4) = confirmed filament.
 
 Single-instrument detections yield candidates; multi-messenger confirms.
+
+## Balance instrumentation
+
+The discovery loop is exercised by deterministic autoplay (`greedy_research` strategy) that calls the same `observe_scene` path as the CLI. Event telemetry records RP deltas, tier unlocks, and survey/milestone timing. See [balance-playtesting.md](balance-playtesting.md).
 
 ## Telescope UI
 

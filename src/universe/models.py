@@ -51,6 +51,7 @@ class ObjectType(str, Enum):
     ASTEROID = "asteroid"
     COMET = "comet"
     OBSERVATORY = "observatory"
+    SPECULATIVE_ANOMALY = "speculative_anomaly"
 
 
 class NodeClass(str, Enum):
@@ -144,6 +145,13 @@ class SceneMetadata(BaseModel):
     generator: str = "universe"
     description: str = ""
     scientific_caveats: list[str] = Field(default_factory=list)
+    # Optional hints for frontends (Godot/HTML); defaults keep older JSON compatible.
+    scene_class: str = ""  # "solar_system" | "deep_field"
+    recommended_camera_target_object_id: str = ""
+    recommended_initial_signal_mode: str = ""
+    featured_object_ids: list[str] = Field(default_factory=list)
+    teaching_summary: str = ""
+    scale_description: str = ""
 
 
 class SceneRegion(BaseModel):

@@ -302,6 +302,40 @@ def generate_cmb_background(redshift: float) -> CosmicObject:
     )
 
 
+def generate_speculative_anomaly(seed: str, redshift: float) -> CosmicObject:
+    """Single fictional now-scope target for Scene 001 (placeholder endgame)."""
+    rng = _seed_rng(seed, "speculative-anomaly")
+    half = 8.0
+    pos = Vector3(
+        x=rng.uniform(-half * 0.2, half * 0.2),
+        y=rng.uniform(-half * 0.2, half * 0.2),
+        z=rng.uniform(-half * 0.2, half * 0.2),
+    )
+    return CosmicObject(
+        id="spec-now-anomaly-001",
+        name="Causality Shadow",
+        type=ObjectType.SPECULATIVE_ANOMALY,
+        position_mpc=pos,
+        redshift=redshift,
+        description=(
+            "Speculative now-scope anomaly — fictional placeholder for causality-independent "
+            "observation. Not a real astrophysical object."
+        ),
+        properties={
+            "speculative": True,
+            "requires_signal": "speculative_now_signal",
+            "requires_tier": "now_scope",
+        },
+        visual=VisualHints(
+            color="#ff66ff",
+            emissive=True,
+            opacity=0.85,
+            scale=2.5,
+            label="Now-Scope Anomaly [SPECULATIVE]",
+        ),
+    )
+
+
 def generate_void(
     seed: str,
     region_size: float,
