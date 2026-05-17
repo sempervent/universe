@@ -250,12 +250,17 @@ def effective_tier_research_cost(tier: TelescopeTier, state: ResearchState) -> i
 
 def all_signal_types_for_state(state: ResearchState) -> set[str]:
     """Return cumulative set of signal types across all unlocked tiers."""
-    signals: set[str] = set()
+    signals: set[str] = set(state.known_signal_types)
     for tier_id in state.unlocked_tiers:
         tier = get_tier_by_id(tier_id)
         if tier:
             signals.update(s.value for s in tier.signal_types)
     return signals
+
+
+def available_signal_modes(state: ResearchState) -> list[str]:
+    """Sorted signal modes the player may select as instruments."""
+    return sorted(all_signal_types_for_state(state))
 
 
 def best_sensitivity_for_state(state: ResearchState) -> float:

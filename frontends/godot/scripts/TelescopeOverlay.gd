@@ -87,7 +87,9 @@ func update_hud(
 		fov_lbl,
 	]
 	if has_selection and selected_name != "":
-		_hud_bottom.text = "Target lock: %s  ·  F center  ·  Observe Selected" % selected_name
+		_hud_bottom.text = (
+			"Target lock: %s  ·  F center  ·  Observe  ·  Capture in Imaging tab" % selected_name
+		)
 		_lock_frame.visible = true
 	else:
 		_hud_bottom.text = "Click sky target to select  ·  F center  ·  V Scene Map"

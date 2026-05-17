@@ -16,6 +16,8 @@ REQUIRED_GODOT_SCRIPTS: tuple[str, ...] = (
     "scripts/SceneLoader.gd",
     "scripts/SkyRenderer.gd",
     "scripts/SkyProjection.gd",
+    "scripts/ObservatoryTime.gd",
+    "scripts/ImagingEngine.gd",
     "scripts/InstrumentVisibility.gd",
     "scripts/ObservatoryRenderer.gd",
     "scripts/TelescopeOverlay.gd",

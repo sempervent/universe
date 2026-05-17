@@ -25,6 +25,11 @@ signal action_campaign_load_and_set(scene_id: String)
 signal action_campaign_refresh()
 signal action_observe_transient(event_id: String)
 signal action_view_mode_changed(mode_id: String)
+signal action_time_pause()
+signal action_time_advance(hours: float)
+signal action_time_scale(scale: float)
+signal action_capture_image(camera_id: String)
+signal action_combine_images()
 
 const PANEL_BG := Color(0.04, 0.05, 0.08, 0.92)
 const TEXT_DIM := Color(0.65, 0.7, 0.85)
@@ -72,6 +77,10 @@ var _signal_mode: String = "visible_light"
 var _reset_dialog: ConfirmationDialog = null
 var _export_window: Window = null
 var _viewfinder: TelescopeOverlay = null
+var _time_label: Label
+var _cameras_text: RichTextLabel
+var _images_text: RichTextLabel
+var _signal_catalog: Array = []
 
 
 func _ready() -> void:
@@ -79,6 +88,7 @@ func _ready() -> void:
 
 
 func setup_signal_modes(modes: Array) -> void:
+	_signal_catalog = modes.duplicate()
 	_signal_option.clear()
 	for m in modes:
 		if m is String:
@@ -96,6 +106,26 @@ func setup_signal_modes(modes: Array) -> void:
 
 func get_signal_mode() -> String:
 	return _signal_mode
+
+
+func refresh_signal_modes(state: Dictionary, tree: Array, full_catalog: Array) -> void:
+	var known: Array = TechTree.all_known_signal_types(tree, state)
+	var allowed: Array = []
+	for m in full_catalog:
+		if m is String and m in known:
+			allowed.append(m)
+	if allowed.is_empty():
+		allowed = ["visible_light"]
+	var prev: String = _signal_mode
+	_signal_option.clear()
+	for m in allowed:
+		_signal_option.add_item(m)
+	if prev in allowed:
+		select_signal_mode(prev)
+	elif "visible_light" in allowed:
+		select_signal_mode("visible_light")
+	elif allowed.size() > 0:
+		select_signal_mode(str(allowed[0]))
 
 
 func select_signal_mode(mode: String) -> void:
@@ -374,12 +404,15 @@ func update_viewfinder(
 	fov_degrees: float,
 	selected_name: String,
 	has_selection: bool,
+	time_label: String = "",
 ) -> void:
 	if _viewfinder == null:
 		return
 	_viewfinder.set_observatory_active(observatory_active)
 	if observatory_active:
 		_viewfinder.update_hud(tier_name, signal_mode, fov_degrees, selected_name, has_selection)
+	if _time_label:
+		_time_label.text = time_label
 
 
 func flash_viewfinder() -> void:
@@ -441,6 +474,35 @@ func _build_left_panel() -> void:
 	_view_option.select(0)
 	_view_option.item_selected.connect(_on_view_mode_selected)
 	vb.add_child(_view_option)
+	vb.add_child(_label("Local time (Space pause, . +1h)", 10, TEXT_DIM))
+	_time_label = _label("Day 0 · 12:00 · Day", 11, TEXT_BRIGHT)
+	vb.add_child(_time_label)
+	var hb_time := HBoxContainer.new()
+	var btn_pause := Button.new()
+	btn_pause.text = "Pause"
+	btn_pause.pressed.connect(func(): action_time_pause.emit())
+	hb_time.add_child(btn_pause)
+	var btn_h1 := Button.new()
+	btn_h1.text = "+1h"
+	btn_h1.pressed.connect(func(): action_time_advance.emit(1.0))
+	hb_time.add_child(btn_h1)
+	var btn_h6 := Button.new()
+	btn_h6.text = "+6h"
+	btn_h6.pressed.connect(func(): action_time_advance.emit(6.0))
+	hb_time.add_child(btn_h6)
+	var btn_night := Button.new()
+	btn_night.text = "Next Night"
+	btn_night.pressed.connect(func(): action_time_advance.emit(6.0))
+	hb_time.add_child(btn_night)
+	vb.add_child(hb_time)
+	var hb_scale := HBoxContainer.new()
+	for sc in [0.0, 1.0, 10.0, 100.0]:
+		var b := Button.new()
+		b.text = "%.0fx" % sc if sc > 0 else "Pause flow"
+		var s: float = sc
+		b.pressed.connect(func(): action_time_scale.emit(s))
+		hb_scale.add_child(b)
+	vb.add_child(hb_scale)
 	var btn_obs := Button.new()
 	btn_obs.text = "Observe Selected"
 	btn_obs.pressed.connect(func(): action_observe.emit())
@@ -581,6 +643,85 @@ func _build_right_panel() -> void:
 	_tab_container.add_child(_objectives_text)
 
 	_build_campaign_tab()
+	_build_imaging_tab()
+
+
+func render_time_controls(state: Dictionary) -> void:
+	if _time_label:
+		_time_label.text = ObservatoryTime.time_label(state)
+
+
+func render_cameras(state: Dictionary, catalog: Array, tree: Array) -> void:
+	if _cameras_text == null:
+		return
+	var lines := PackedStringArray()
+	var unlocked: Array = ImagingEngine.unlocked_camera_ids(state, catalog)
+	for c in catalog:
+		if not (c is Dictionary):
+			continue
+		var cid: String = str(c.get("id", ""))
+		var lock: String = "🔓" if cid in unlocked else "🔒"
+		lines.append("%s [b]%s[/b] — tier %s" % [
+			lock, c.get("name", cid), c.get("required_tier_id", "?"),
+		])
+		lines.append("  signals: %s" % ", ".join(c.get("signal_types", [])))
+		if cid in unlocked:
+			lines.append("  [url=capture:%s]capture with this camera[/url]" % cid)
+		lines.append("")
+	_cameras_text.text = "\n".join(lines)
+
+
+func render_image_archive(state: Dictionary) -> void:
+	if _images_text == null:
+		return
+	var images: Dictionary = state.get("captured_images", {})
+	if images.is_empty():
+		_images_text.text = "[i]No captured images yet. Select a target and use Cameras tab.[/i]"
+		return
+	var lines := PackedStringArray()
+	for iid in images.keys():
+		var img: Dictionary = images[iid] as Dictionary
+		lines.append("[b]%s[/b] (%s)" % [img.get("title", iid), img.get("image_type", "?")])
+		lines.append(
+			"  quality %d%% · signals %s · turn %s"
+			% [
+				int(round(float(img.get("quality_score", 0)) * 100)),
+				", ".join(img.get("signal_modes", [])),
+				str(img.get("captured_turn", "?")),
+			]
+		)
+		lines.append("")
+	_images_text.text = "\n".join(lines)
+
+
+func _build_imaging_tab() -> void:
+	var scroll := ScrollContainer.new()
+	scroll.name = "Imaging"
+	var vb := VBoxContainer.new()
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(vb)
+	_tab_container.add_child(scroll)
+	_cameras_text = RichTextLabel.new()
+	_cameras_text.bbcode_enabled = true
+	_cameras_text.scroll_active = true
+	_cameras_text.custom_minimum_size = Vector2(0, 180)
+	_cameras_text.meta_clicked.connect(_on_meta_clicked)
+	vb.add_child(_label("Cameras / Sensors", 11, TEXT_DIM))
+	vb.add_child(_cameras_text)
+	var btn_cap := Button.new()
+	btn_cap.text = "Capture (default camera)"
+	btn_cap.pressed.connect(func(): action_capture_image.emit("naked_eye_memory"))
+	vb.add_child(btn_cap)
+	var btn_comp := Button.new()
+	btn_comp.text = "Create Composite for Selected"
+	btn_comp.pressed.connect(func(): action_combine_images.emit())
+	vb.add_child(btn_comp)
+	vb.add_child(_label("Image archive", 11, TEXT_DIM))
+	_images_text = RichTextLabel.new()
+	_images_text.bbcode_enabled = true
+	_images_text.scroll_active = true
+	_images_text.custom_minimum_size = Vector2(0, 160)
+	vb.add_child(_images_text)
 
 
 func _build_campaign_tab() -> void:
@@ -1289,6 +1430,8 @@ func _on_meta_clicked(meta: Variant) -> void:
 		action_unlock_tier.emit(s.substr("unlock:".length()))
 	elif s.begins_with("set:"):
 		action_set_active_tier.emit(s.substr("set:".length()))
+	elif s.begins_with("capture:"):
+		action_capture_image.emit(s.substr("capture:".length()))
 
 
 func _find_object(oid: String) -> Dictionary:

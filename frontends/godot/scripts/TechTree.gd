@@ -80,3 +80,51 @@ static func all_known_signal_types(tree: Array, state: Dictionary) -> Array:
 		for s in t.get("signal_types", []):
 			sigs[s] = true
 	return sigs.keys()
+
+
+static func sync_known_signals(tree: Array, state: Dictionary) -> Dictionary:
+	var sigs := {}
+	for t in unlocked_tier_dicts(tree, state):
+		for s in t.get("signal_types", []):
+			sigs[s] = true
+	if sigs.is_empty():
+		sigs["visible_light"] = true
+	var out: Dictionary = state.duplicate(true)
+	out["known_signal_types"] = sigs.keys()
+	return out
+
+
+static func can_unlock(tree: Array, state: Dictionary, tier_id: String, modifiers: Array) -> Dictionary:
+	var tm := tier_map(tree)
+	if not tm.has(tier_id):
+		return {"ok": false, "message": "Unknown tier."}
+	if tier_id in state.get("unlocked_tiers", []):
+		return {"ok": false, "message": "Already unlocked."}
+	var tier: Dictionary = tm[tier_id]
+	for p in tier.get("prerequisites", []):
+		if p not in state.get("unlocked_tiers", []):
+			return {"ok": false, "message": "Missing prerequisite: %s." % p}
+	var cost: int = EntityModifiers.effective_tier_cost(tier, state, modifiers)
+	if int(state.get("research_points", 0)) < cost:
+		return {
+			"ok": false,
+			"message": "Not enough RP: need %d, have %d." % [cost, int(state.get("research_points", 0))],
+		}
+	return {"ok": true, "cost": cost, "tier": tier}
+
+
+static func unlock_tier(tree: Array, state: Dictionary, tier_id: String, modifiers: Array) -> Dictionary:
+	var check: Dictionary = can_unlock(tree, state, tier_id, modifiers)
+	if not bool(check.get("ok", false)):
+		return {"ok": false, "message": str(check.get("message", "Cannot unlock."))}
+	var tier: Dictionary = check["tier"] as Dictionary
+	var cost: int = int(check.get("cost", 0))
+	var out: Dictionary = state.duplicate(true)
+	out["research_points"] = int(out.get("research_points", 0)) - cost
+	var tiers: Array = out.get("unlocked_tiers", []).duplicate()
+	if tier_id not in tiers:
+		tiers.append(tier_id)
+	out["unlocked_tiers"] = tiers
+	out["active_telescope_tier"] = tier_id
+	out = sync_known_signals(tree, out)
+	return {"ok": true, "state": out, "message": "Unlocked %s." % tier.get("name", tier_id)}

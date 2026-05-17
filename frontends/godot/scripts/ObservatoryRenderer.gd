@@ -22,6 +22,9 @@ var _camera_fit_angle: float = 0.35
 var _pulse_materials: Array[StandardMaterial3D] = []
 var _cmb_dome: MeshInstance3D = null
 var _filament_segments: Array[Dictionary] = []
+var _sky_dome: MeshInstance3D = null
+var _starfield_root: Node3D = null
+var _star_meshes: Array[MeshInstance3D] = []
 
 
 func _process(_delta: float) -> void:
@@ -102,6 +105,7 @@ func render_scene(
 
 	_build_sky_backdrop()
 	_build_horizon()
+	_build_starfield()
 
 	for obj in SceneLoader.get_objects(scene):
 		if not (obj is Dictionary):
@@ -118,6 +122,7 @@ func render_scene(
 		_build_cmb_dome()
 
 	_update_camera_hints(scene)
+	_apply_sky_time_of_day(state)
 	apply_visual_state(state, requirements, signal_mode, _selected_id, _labels_visible, tree)
 
 
@@ -137,6 +142,54 @@ func _build_sky_backdrop() -> void:
 		mat.albedo_color = Color(0.01, 0.02, 0.06)
 	dome.material_override = mat
 	add_child(dome)
+	_sky_dome = dome
+
+
+func _build_starfield() -> void:
+	_starfield_root = Node3D.new()
+	_starfield_root.name = "Starfield"
+	add_child(_starfield_root)
+	_star_meshes.clear()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(_scene_ref.get("id", "sky"))
+	for i in range(220):
+		var az: float = rng.randf() * TAU
+		var el: float = 0.12 + rng.randf() * 0.75
+		var pos: Vector3 = SkyProjection.dome_position(az, el)
+		var star := MeshInstance3D.new()
+		var sp := SphereMesh.new()
+		var sz: float = 0.12 + rng.randf() * 0.22
+		sp.radius = sz
+		sp.height = sz * 2.0
+		star.mesh = sp
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.albedo_color = Color(0.85, 0.9, 1.0, 0.7)
+		mat.emission_enabled = true
+		mat.emission = Color(0.9, 0.95, 1.0)
+		mat.emission_energy_multiplier = 0.4 + rng.randf() * 0.6
+		star.material_override = mat
+		star.position = pos
+		_starfield_root.add_child(star)
+		_star_meshes.append(star)
+
+
+func _apply_sky_time_of_day(state: Dictionary) -> void:
+	var bright: float = ObservatoryTime.sky_brightness(state)
+	if _sky_dome and _sky_dome.material_override is StandardMaterial3D:
+		var mat: StandardMaterial3D = _sky_dome.material_override
+		if _is_deep_field:
+			mat.albedo_color = Color(0.01, 0.015, 0.04).lerp(Color(0.08, 0.1, 0.18), bright * 0.35)
+		else:
+			mat.albedo_color = Color(0.01, 0.02, 0.06).lerp(Color(0.45, 0.55, 0.75), bright)
+	if _starfield_root:
+		_starfield_root.rotation.y = ObservatoryTime.get_fraction(state) * TAU
+	var night: float = 1.0 - bright
+	for star in _star_meshes:
+		star.visible = night > 0.45
+		if star.material_override is StandardMaterial3D:
+			var sm: StandardMaterial3D = star.material_override
+			sm.albedo_color.a = clampf(night * 0.85, 0.0, 0.9)
 
 
 func _build_horizon() -> void:
@@ -158,10 +211,8 @@ func _build_horizon() -> void:
 func _place_sky_target(obj: Dictionary) -> void:
 	var oid: String = str(obj.get("id", ""))
 	var otype: String = str(obj.get("type", ""))
-	var angles: Vector2 = SkyProjection.object_to_sky_angles(obj, _scene_ref)
-	var az: float = angles.x
-	var el: float = angles.y
-	var pos: Vector3 = SkyProjection.dome_position(az, el)
+	var angles: Vector2 = SkyProjection.object_to_sky_angles_timed(obj, _scene_ref, _state_ref)
+	var pos: Vector3 = SkyProjection.dome_position(angles.x, angles.y)
 	var dir: Vector3 = pos.normalized()
 
 	var holder := Node3D.new()
@@ -234,6 +285,7 @@ func _place_sky_target(obj: Dictionary) -> void:
 		"size": size,
 		"obj": obj,
 		"dir": dir,
+		"angles": angles,
 	}
 
 
@@ -341,10 +393,28 @@ func apply_visual_state(
 		var base: Color = e.get("base_color", Color.WHITE) as Color
 		var disc: Dictionary = state.get("discoveries", {}).get(oid, {}) as Dictionary
 		var conf: float = float(disc.get("confidence", 0.0))
+		if holder:
+			var pos: Vector3 = SkyProjection.project_target_at_time(obj, _scene_ref, state)
+			holder.position = pos
+			var dir: Vector3 = pos.normalized()
+			holder.look_at(pos + dir, Vector3.UP)
+		var angles: Vector2 = SkyProjection.object_to_sky_angles_timed(obj, _scene_ref, state)
+		e["angles"] = angles
+		if not SkyProjection.is_above_horizon(angles) and otype not in [
+			"quasar", "magnetar", "black_hole", "lyman_alpha_blob", "cosmic_web_node"
+		]:
+			if mode in ["visible_light", "infrared", "ultraviolet"]:
+				holder.visible = false
+				if area:
+					area.input_ray_pickable = false
+				continue
 		var vis_info: Dictionary = InstrumentVisibility.evaluate(
 			obj, _scene_ref, state, _tech_tree, requirements, mode,
 		)
 		var vis: String = str(vis_info.get("visibility", InstrumentVisibility.FULL))
+		var bright: float = ObservatoryTime.sky_brightness(state)
+		if bright > 0.4 and mode == "visible_light" and otype in ["galaxy", "quasar"]:
+			vis = InstrumentVisibility.DIM if vis == InstrumentVisibility.FULL else vis
 		var emphasis: float = _mode_emphasis(otype, mode, requirements.get(otype, {}) as Dictionary)
 		if vis == InstrumentVisibility.HIDDEN:
 			emphasis *= 0.05
@@ -391,6 +461,7 @@ func apply_visual_state(
 		if fmesh:
 			fmesh.visible = show_fil or TechTree.max_tier_index(_tech_tree, state) >= 5
 
+	_apply_sky_time_of_day(state)
 	highlight(selected_id)
 
 

@@ -62,6 +62,9 @@ class TestGodotResReferences:
         assert "Optical view:" in (GODOT_ROOT / "scripts" / "InstrumentVisibility.gd").read_text(
             encoding="utf-8"
         )
+        assert (GODOT_ROOT / "scripts" / "ObservatoryTime.gd").is_file()
+        assert (GODOT_ROOT / "data" / "camera_catalog.json").is_file()
+        assert "refresh_signal_modes" in console_gd
 
     def test_docs_mention_observatory_and_scene_map(self):
         doc = (REPO_ROOT / "docs" / "godot-frontend.md").read_text(encoding="utf-8")

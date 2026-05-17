@@ -10,7 +10,8 @@
     "entity_modifiers.json",
     "scene_catalog.json",
     "transient_events.json",
-    "objectives.json"
+    "objectives.json",
+    "camera_catalog.json"
   ],
-  "schema_version": "0.5.0"
+  "schema_version": "0.6.0"
 }

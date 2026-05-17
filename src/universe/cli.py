@@ -992,6 +992,101 @@ def game_claim_milestones(state_path: str, out: str | None) -> None:
     click.echo(f"State saved: {out_path}")
 
 
+@game.command("cameras")
+@click.option("--state", "state_path", required=True, type=click.Path(exists=True))
+def game_cameras(state_path: str) -> None:
+    """List imaging cameras/sensors and unlock status."""
+    from universe.game.imaging import available_cameras, camera_catalog_by_id, cameras_unlocked_for_state
+
+    state = _load_game_state(state_path)
+    catalog = camera_catalog_by_id()
+    unlocked = cameras_unlocked_for_state(state)
+    click.echo(f"Unlocked cameras: {len(unlocked)}")
+    for cam in available_cameras(state):
+        click.echo(f"  [unlocked] {cam.id}: {cam.name} (tier {cam.required_tier_id})")
+        click.echo(f"    signals: {', '.join(cam.signal_types)}")
+    for cid, cam in sorted(catalog.items()):
+        if cid not in unlocked:
+            click.echo(f"  [locked]   {cid}: {cam.name} (tier {cam.required_tier_id})")
+
+
+@game.command("capture-image")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True))
+@click.option("--state", "state_path", required=True, type=click.Path(exists=True))
+@click.option("--object", "object_id", required=True)
+@click.option("--camera", "camera_id", default="naked_eye_memory")
+@click.option("--signal", "signal_mode", default="visible_light")
+@click.option("--out", default=None)
+def game_capture_image(
+    scene_path: str, state_path: str, object_id: str, camera_id: str, signal_mode: str, out: str | None
+) -> None:
+    """Capture a metadata image of an object."""
+    from universe.game.imaging import capture_image
+    from universe.models import SceneRegion
+
+    state = _load_game_state(state_path)
+    scene = SceneRegion.model_validate_json(Path(scene_path).read_text(encoding="utf-8"))
+    obj = next((o for o in scene.objects if o.id == object_id), None)
+    if obj is None:
+        click.echo(f"Object not found: {object_id}", err=True)
+        sys.exit(1)
+    conf = 0.0
+    disc = state.discoveries.get(object_id)
+    if disc:
+        conf = disc.confidence
+  # optional calc
+    new_state, img, msg = capture_image(
+        scene.id,
+        state,
+        object_id,
+        signal_mode,
+        camera_id,
+        object_name=obj.name,
+        object_type=str(getattr(obj.type, "value", obj.type)),
+        confidence=conf,
+    )
+    click.echo(msg)
+    if img:
+        click.echo(f"  Image id: {img.id} quality={img.quality_score:.0%}")
+    out_path = Path(out) if out else Path(state_path)
+    _save_game_state(new_state, out_path)
+
+
+@game.command("images")
+@click.option("--state", "state_path", required=True, type=click.Path(exists=True))
+def game_images(state_path: str) -> None:
+    """List captured image archive."""
+    from universe.game.imaging import CapturedImage, image_archive_summary
+
+    state = _load_game_state(state_path)
+    summary = image_archive_summary(state)
+    click.echo(f"Archive: {summary['count']} images, {summary['objects']} objects")
+    for raw in state.captured_images.values():
+        img = CapturedImage.model_validate(raw)
+        click.echo(
+            f"  {img.id}: {img.title} ({img.image_type}) q={img.quality_score:.0%} "
+            f"signals={','.join(img.signal_modes)}"
+        )
+
+
+@game.command("combine-images")
+@click.option("--state", "state_path", required=True, type=click.Path(exists=True))
+@click.option("--images", "image_ids", required=True, help="Comma-separated image ids.")
+@click.option("--out", default=None)
+def game_combine_images(state_path: str, image_ids: str, out: str | None) -> None:
+    """Combine compatible captured images into a composite."""
+    from universe.game.imaging import combine_images
+
+    state = _load_game_state(state_path)
+    ids = [s.strip() for s in image_ids.split(",") if s.strip()]
+    new_state, img, msg = combine_images(state, ids)
+    click.echo(msg)
+    if img:
+        click.echo(f"  Composite id: {img.id}")
+    out_path = Path(out) if out else Path(state_path)
+    _save_game_state(new_state, out_path)
+
+
 @game.command("export-godot-data")
 @click.option(
     "--out",

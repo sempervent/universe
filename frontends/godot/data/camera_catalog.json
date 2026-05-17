@@ -1,0 +1,138 @@
+[
+  {
+    "id": "naked_eye_memory",
+    "name": "Naked-Eye Sketch Memory",
+    "camera_type": "visual_camera",
+    "required_tier_id": "naked_eye",
+    "signal_types": [
+      "visible_light"
+    ],
+    "resolution_rating": 0.2,
+    "sensitivity_rating": 0.15,
+    "field_of_view_deg": 120.0,
+    "noise_level": 0.5,
+    "description": "Mental note / hand sketch \u2014 very low resolution.",
+    "research_cost": 0,
+    "upgrade_level": 0,
+    "speculative": false
+  },
+  {
+    "id": "basic_visual_camera",
+    "name": "Basic Visual Camera",
+    "camera_type": "visual_camera",
+    "required_tier_id": "ground_optical",
+    "signal_types": [
+      "visible_light"
+    ],
+    "resolution_rating": 0.6,
+    "sensitivity_rating": 0.4,
+    "field_of_view_deg": 2.0,
+    "noise_level": 0.2,
+    "description": "Ground optical imager for planets and bright targets.",
+    "research_cost": 0,
+    "upgrade_level": 0,
+    "speculative": false
+  },
+  {
+    "id": "infrared_sensor",
+    "name": "Infrared Sensor",
+    "camera_type": "infrared_sensor",
+    "required_tier_id": "improved_ground",
+    "signal_types": [
+      "infrared"
+    ],
+    "resolution_rating": 0.7,
+    "sensitivity_rating": 0.55,
+    "field_of_view_deg": 1.5,
+    "noise_level": 0.2,
+    "description": "Thermal / near-IR channel.",
+    "research_cost": 0,
+    "upgrade_level": 0,
+    "speculative": false
+  },
+  {
+    "id": "radio_array",
+    "name": "Radio Interferometer Array",
+    "camera_type": "radio_array",
+    "required_tier_id": "radio",
+    "signal_types": [
+      "radio"
+    ],
+    "resolution_rating": 0.8,
+    "sensitivity_rating": 0.7,
+    "field_of_view_deg": 0.5,
+    "noise_level": 0.2,
+    "description": "Radio synthesis imaging.",
+    "research_cost": 0,
+    "upgrade_level": 0,
+    "speculative": false
+  },
+  {
+    "id": "microwave_detector",
+    "name": "Microwave Sky Mapper",
+    "camera_type": "microwave_detector",
+    "required_tier_id": "radio",
+    "signal_types": [
+      "microwave"
+    ],
+    "resolution_rating": 0.5,
+    "sensitivity_rating": 0.8,
+    "field_of_view_deg": 8.0,
+    "noise_level": 0.2,
+    "description": "All-sky microwave / CMB channel.",
+    "research_cost": 0,
+    "upgrade_level": 0,
+    "speculative": false
+  },
+  {
+    "id": "xray_detector",
+    "name": "X-ray Imager",
+    "camera_type": "xray_detector",
+    "required_tier_id": "xray_gamma",
+    "signal_types": [
+      "xray"
+    ],
+    "resolution_rating": 0.75,
+    "sensitivity_rating": 0.65,
+    "field_of_view_deg": 5.0,
+    "noise_level": 0.2,
+    "description": "High-energy compact sources.",
+    "research_cost": 0,
+    "upgrade_level": 0,
+    "speculative": false
+  },
+  {
+    "id": "weak_lensing_mapper",
+    "name": "Weak-Lensing Mass Mapper",
+    "camera_type": "weak_lensing_mapper",
+    "required_tier_id": "dark_matter_mapper",
+    "signal_types": [
+      "weak_lensing"
+    ],
+    "resolution_rating": 0.6,
+    "sensitivity_rating": 0.5,
+    "field_of_view_deg": 3.0,
+    "noise_level": 0.2,
+    "description": "Inferred mass map \u2014 not a photograph.",
+    "research_cost": 0,
+    "upgrade_level": 0,
+    "speculative": false
+  },
+  {
+    "id": "now_scope_imager",
+    "name": "Now-Scope Imager",
+    "camera_type": "now_scope_imager",
+    "required_tier_id": "now_scope",
+    "signal_types": [
+      "speculative_now_signal"
+    ],
+    "resolution_rating": 1.0,
+    "sensitivity_rating": 1.0,
+    "field_of_view_deg": 5.0,
+    "noise_level": 0.2,
+    "description": "Fictional causality-independent imager.",
+    "research_cost": 0,
+    "upgrade_level": 0,
+    "speculative": true
+  }
+]

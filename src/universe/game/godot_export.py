@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from universe.game.discovery import get_discovery_requirements
+from universe.game.imaging import get_default_camera_catalog
 from universe.game.entity import ENTITY_TYPE_LABELS, RANDOM_ENTITY_NAMES, get_all_entity_modifiers
 from universe.game.milestones import get_default_milestones
 from universe.game.models import SignalType
@@ -34,8 +35,9 @@ def export_godot_data_bundle(out_dir: Path) -> dict[str, Path]:
         "scene_catalog.json": catalog_for_export(),
         "transient_events.json": transients_for_export(),
         "objectives.json": objectives_for_export(),
+        "camera_catalog.json": [c.model_dump(mode="json") for c in get_default_camera_catalog()],
     }
-    manifest = {"files": list(bundle.keys()), "schema_version": "0.5.0"}
+    manifest = {"files": list(bundle.keys()), "schema_version": "0.6.0"}
     bundle["manifest.json"] = manifest
 
     written: dict[str, Path] = {}

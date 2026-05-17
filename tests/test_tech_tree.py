@@ -2,6 +2,8 @@
 
 from universe.game.models import ResearchState
 from universe.game.tech_tree import (
+    all_signal_types_for_state,
+    available_signal_modes,
     available_upgrades,
     can_unlock_tier,
     get_default_tech_tree,
@@ -69,6 +71,21 @@ class TestResearchState:
         assert "naked_eye" in state.unlocked_tiers
         assert state.active_telescope_tier == "naked_eye"
         assert "visible_light" in state.known_signal_types
+
+    def test_initial_signals_only_visible_light(self):
+        state = ResearchState()
+        modes = available_signal_modes(state)
+        assert modes == ["visible_light"]
+        assert "radio" not in all_signal_types_for_state(state)
+        assert "infrared" not in all_signal_types_for_state(state)
+
+    def test_unlock_adds_signal_types(self):
+        state = ResearchState(research_points=50)
+        state, _ = unlock_tier(state, "ground_optical")
+        sigs = all_signal_types_for_state(state)
+        assert "visible_light" in sigs
+        state, _ = unlock_tier(state, "improved_ground")
+        assert "infrared" in all_signal_types_for_state(state)
 
     def test_unlock_spends_points(self):
         state = ResearchState(research_points=50)

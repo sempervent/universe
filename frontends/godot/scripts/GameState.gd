@@ -36,6 +36,9 @@ static func default_state() -> Dictionary:
 		"transient_events": {},
 		"objectives": {},
 		"active_objective_ids": [],
+		"observatory_time": ObservatoryTime.default_dict(),
+		"unlocked_camera_ids": ["naked_eye_memory"],
+		"captured_images": {},
 	}
 
 
@@ -92,6 +95,12 @@ static func ensure_backward_compatibility(state: Dictionary) -> Dictionary:
 		out["campaign"] = default_campaign()
 	else:
 		out["campaign"] = _normalize_campaign_dict(out["campaign"])
+
+	out = ObservatoryTime.ensure(out)
+	if not (out.get("unlocked_camera_ids") is Array) or out["unlocked_camera_ids"].is_empty():
+		out["unlocked_camera_ids"] = ["naked_eye_memory"]
+	if not (out.get("captured_images") is Dictionary):
+		out["captured_images"] = {}
 
 	return out
 

@@ -28,6 +28,56 @@ static func object_to_sky_angles(obj: Dictionary, scene: Dictionary) -> Vector2:
 	return _deep_field_angles(obj, scene)
 
 
+static func project_target_at_time(obj: Dictionary, scene: Dictionary, state: Dictionary) -> Vector3:
+	var angles: Vector2 = object_to_sky_angles_timed(obj, scene, state)
+	return dome_position(angles.x, angles.y)
+
+
+static func object_to_sky_angles_timed(obj: Dictionary, scene: Dictionary, state: Dictionary) -> Vector2:
+	var base: Vector2 = object_to_sky_angles(obj, scene)
+	var frac: float = ObservatoryTime.get_fraction(state)
+	var sidereal: float = frac * TAU
+	var oid: String = str(obj.get("id", ""))
+
+	if SceneLoader.is_solar_system_scene(scene):
+		if oid == "sun":
+			var el_s: float = clampf(sin((frac - 0.25) * TAU) * 0.82 + 0.12, -0.2, 1.2)
+			var az_s: float = 0.2 + sidereal * 0.08
+			return Vector2(az_s, el_s)
+		var drift: float = _daily_drift_rate(obj)
+		var az: float = base.x + sidereal * (1.0 + drift * 0.02)
+		var el: float = base.y + sin(sidereal + _hash01(oid) * TAU) * 0.04
+		if oid == "moon":
+			el = 0.25 + sin(sidereal * 2.1) * 0.35
+			az = 0.45 + sidereal * 1.8
+		return Vector2(az, el)
+
+	var az_df: float = base.x + sidereal * 0.04
+	var el_df: float = base.y
+	return Vector2(az_df, el_df)
+
+
+static func is_above_horizon(angles: Vector2) -> bool:
+	return angles.y > 0.06
+
+
+static func _daily_drift_rate(obj: Dictionary) -> float:
+	var oid: String = str(obj.get("id", ""))
+	if oid.begins_with("moon-"):
+		return 3.5
+	if oid == "moon":
+		return 2.8
+	match str(obj.get("type", "")):
+		"planet":
+			if oid in ["planet-mercury", "planet-venus"]:
+				return 1.6
+			return 0.6
+		"asteroid", "comet":
+			return 1.2
+		_:
+			return 0.3
+
+
 static func direction_from_angles(az: float, el: float) -> Vector3:
 	var cel: float = cos(el)
 	var y: float = sin(el)

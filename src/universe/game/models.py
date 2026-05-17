@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from universe.game.entity import ResearchEntity
 from universe.game.milestones import MilestoneRecord
+from universe.game.observatory_time import ObservatoryTimeState, default_observatory_time
 from universe.game.surveys import SurveyProgress
 
 
@@ -205,6 +206,13 @@ class ResearchState(BaseModel):
     # ── First-run tutorial objectives ──────────────────────────────────
     objectives: dict[str, ObjectiveProgress] = Field(default_factory=dict)
     active_objective_ids: list[str] = Field(default_factory=list)
+
+    # ── Observatory time (local sky clock) ─────────────────────────────
+    observatory_time: ObservatoryTimeState = Field(default_factory=default_observatory_time)
+
+    # ── Imaging archive ────────────────────────────────────────────────
+    unlocked_camera_ids: list[str] = Field(default_factory=lambda: ["naked_eye_memory"])
+    captured_images: dict[str, dict] = Field(default_factory=dict)
 
     @property
     def discovered_object_ids(self) -> set[str]:

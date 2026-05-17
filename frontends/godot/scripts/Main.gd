@@ -45,23 +45,38 @@ var _view_mode: ViewMode = ViewMode.OBSERVATORY
 var _observatory_needs_rebuild: bool = true
 var _sky_needs_rebuild: bool = true
 var _scene_map_warned: bool = false
+var _camera_catalog: Array = []
+const _TIME_HOURS_PER_SEC_BASE := 0.1
 
 
 func _ready() -> void:
 	_setup_3d()
-	_setup_console()
 	_load_static_data()
+	_setup_console()
 	_load_scene_and_state()
 	_observatory_needs_rebuild = true
 	_sky_needs_rebuild = true
 	_render_all()
+	console.refresh_signal_modes(state, tech_tree, _load_signal_modes_json())
 	_apply_camera_framing()
 	_update_viewfinder()
 
 
-func _process(_delta: float) -> void:
-	if _is_observatory_view():
-		_update_viewfinder()
+func _process(delta: float) -> void:
+	if not _is_observatory_view():
+		return
+	if not ObservatoryTime.is_paused(state):
+		var scale: float = ObservatoryTime.get_time_scale(state)
+		if scale > 0.0:
+			state = ObservatoryTime.advance_hours(
+				state, delta * scale * _TIME_HOURS_PER_SEC_BASE
+			)
+			var mode: String = console.get_signal_mode()
+			var sel: String = console.selected_id()
+			observatory.apply_visual_state(
+				state, requirements_map, mode, sel, console.is_labels_visible(), tech_tree
+			)
+	_update_viewfinder()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -71,6 +86,20 @@ func _unhandled_input(event: InputEvent) -> void:
 				console.toggle_labels_from_hotkey()
 			KEY_V:
 				_toggle_view_mode()
+			KEY_SPACE:
+				state = ObservatoryTime.set_paused(state, not ObservatoryTime.is_paused(state))
+				_log("Time %s." % ("paused" if ObservatoryTime.is_paused(state) else "running"), "#aaccff")
+				_render_all()
+			KEY_BRACKETRIGHT, KEY_PERIOD:
+				state = ObservatoryTime.advance_hours(state, 1.0)
+				_log("Advanced +1 hour — %s" % ObservatoryTime.time_label(state), "#aaccff")
+				_observatory_needs_rebuild = true
+				_render_all()
+			KEY_BRACKETLEFT, KEY_COMMA:
+				state = ObservatoryTime.advance_hours(state, -1.0)
+				_log("Rewound −1 hour — %s" % ObservatoryTime.time_label(state), "#aaccff")
+				_observatory_needs_rebuild = true
+				_render_all()
 
 
 func _setup_3d() -> void:
@@ -133,6 +162,11 @@ func _setup_console() -> void:
 	console.action_campaign_refresh.connect(refresh_campaign_ui)
 	console.action_observe_transient.connect(_on_observe_transient)
 	console.action_view_mode_changed.connect(_on_view_mode_changed)
+	console.action_time_pause.connect(_on_time_pause)
+	console.action_time_advance.connect(_on_time_advance)
+	console.action_time_scale.connect(_on_time_scale)
+	console.action_capture_image.connect(_on_capture_image)
+	console.action_combine_images.connect(_on_combine_images)
 	console.set_view_mode("observatory")
 
 
@@ -160,6 +194,7 @@ func _load_static_data() -> void:
 	scene_catalog = _load_scene_catalog()
 	transient_defs = TransientEngineS.load_definitions(FilePaths.TRANSIENTS_PATH)
 	objective_defs = ObjectiveEngineS.load_definitions(FilePaths.OBJECTIVES_PATH)
+	_camera_catalog = ImagingEngine.load_catalog(FilePaths.CAMERA_CATALOG_PATH)
 	if tech_tree.is_empty():
 		_log("[!] frontends/godot/data/ is empty — run `universe game export-godot-data`.", "#ff8888")
 
@@ -197,6 +232,8 @@ func _load_scene_and_state() -> void:
 		scene_data = {"id": "missing", "name": "(no scene loaded)", "objects": []}
 
 	state = GameStateS.load_state(_state_path)
+	state = ObservatoryTime.ensure(state)
+	state = TechTreeS.sync_known_signals(tech_tree, state)
 	state = load_campaign_catalog()
 	_last_save_path = _state_path
 	if state.get("research_entity", {}).get("name", "") == GameStateS.DEFAULT_ENTITY_NAME:
@@ -375,6 +412,7 @@ func _apply_camera_framing() -> void:
 
 
 func _render_all() -> void:
+	state = ObservatoryTime.ensure(state)
 	state = TransientEngineS.update_states(state, transient_defs)
 	var mode: String = console.get_signal_mode()
 	var sel: String = console.selected_id()
@@ -419,8 +457,79 @@ func _render_all() -> void:
 	console.render_milestones(state, milestones, entity_modifiers)
 	console.render_transients(state, transient_defs, scene_data, tech_tree)
 	console.render_objectives(state, objective_defs)
+	console.render_time_controls(state)
+	console.render_cameras(state, _camera_catalog, tech_tree)
+	console.render_image_archive(state)
+	console.refresh_signal_modes(state, tech_tree, _load_signal_modes_json())
 	_apply_environment_for_signal(console.get_signal_mode())
 	_update_viewfinder()
+
+
+func _on_time_pause() -> void:
+	state = ObservatoryTime.set_paused(state, not ObservatoryTime.is_paused(state))
+	_render_all()
+
+
+func _on_time_advance(hours: float) -> void:
+	state = ObservatoryTime.advance_hours(state, hours)
+	_observatory_needs_rebuild = true
+	_render_all()
+
+
+func _on_time_scale(scale: float) -> void:
+	state = ObservatoryTime.set_time_scale(state, scale)
+	_log("Time scale: %.0fx" % scale, "#aaccff")
+	_render_all()
+
+
+func _on_capture_image(camera_id: String) -> void:
+	var oid: String = console.selected_id()
+	if oid == "":
+		_log("Select a target to capture.", "#ffaa88")
+		return
+	var obj: Dictionary = _find_object(oid)
+	var disc: Dictionary = state.get("discoveries", {}).get(oid, {}) as Dictionary
+	var conf: float = float(disc.get("confidence", 0.0))
+	var res: Dictionary = ImagingEngine.capture(
+		str(scene_data.get("id", "")),
+		state,
+		oid,
+		str(obj.get("name", oid)),
+		str(obj.get("type", "")),
+		console.get_signal_mode(),
+		camera_id,
+		conf,
+		_camera_catalog,
+	)
+	if not bool(res.get("ok", false)):
+		_log(str(res.get("message", "Capture failed.")), "#ff8888")
+		return
+	state = res["state"]
+	_log(str(res.get("message", "Captured.")), "#aaffaa")
+	console.flash_viewfinder()
+	_render_all()
+
+
+func _on_combine_images() -> void:
+	var oid: String = console.selected_id()
+	if oid == "":
+		_log("Select object for composite.", "#ffaa88")
+		return
+	var ids: Array = []
+	for iid in state.get("captured_images", {}).keys():
+		var img: Dictionary = state["captured_images"][iid] as Dictionary
+		if str(img.get("object_id", "")) == oid and str(img.get("image_type", "")) == "single_signal":
+			ids.append(iid)
+	if ids.size() < 2:
+		_log("Need 2+ single-signal captures of this object.", "#ffaa88")
+		return
+	var res: Dictionary = ImagingEngine.combine(state, ids.slice(0, 4))
+	if not bool(res.get("ok", false)):
+		_log(str(res.get("message", "?")), "#ff8888")
+		return
+	state = res["state"]
+	_log(str(res.get("message", "Composite created.")), "#88ff99")
+	_render_all()
 
 
 func _update_viewfinder() -> void:
@@ -443,6 +552,7 @@ func _update_viewfinder() -> void:
 		camera.get_observatory_fov_degrees(),
 		sel_name,
 		sel != "",
+		ObservatoryTime.time_label(state),
 	)
 
 
@@ -707,24 +817,13 @@ func _on_start_survey(sid: String) -> void:
 
 
 func _on_unlock_tier(tid: String) -> void:
-	var tm := TechTreeS.tier_map(tech_tree)
-	if not tm.has(tid):
+	var res: Dictionary = TechTreeS.unlock_tier(tech_tree, state, tid, entity_modifiers)
+	if not bool(res.get("ok", false)):
+		_log(str(res.get("message", "Cannot unlock.")), "#ff8888")
 		return
-	var tier: Dictionary = tm[tid]
-	var cost: int = EntityModifiersS.effective_tier_cost(tier, state, entity_modifiers)
-	if int(state.get("research_points", 0)) < cost:
-		return
-	state["research_points"] = int(state["research_points"]) - cost
-	if not (tid in state["unlocked_tiers"]):
-		state["unlocked_tiers"].append(tid)
-	state["active_telescope_tier"] = tid
-	var sigs := {}
-	for s in state.get("known_signal_types", []):
-		sigs[s] = true
-	for s in tier.get("signal_types", []):
-		sigs[s] = true
-	state["known_signal_types"] = sigs.keys()
-	_log("Unlocked tier: %s" % tier["name"], "#88ff99")
+	state = res["state"]
+	_log(str(res.get("message", "Unlocked.")), "#88ff99")
+	console.refresh_signal_modes(state, tech_tree, _load_signal_modes_json())
 	refresh_campaign_unlocks()
 	_post_observe()
 
