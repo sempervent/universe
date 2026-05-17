@@ -796,8 +796,9 @@ func render_survey_hint(scene: Dictionary, state: Dictionary, surveys_map: Dicti
 			suggestions.append(s.get("name", sid))
 	if suggestions.is_empty():
 		_survey_hint.text = (
-			"[i]No deep-field survey active — unlock [b]space_optical[/b], [b]radio[/b], "
-			"or [b]xray_gamma[/b] tiers (see Tech) to start Deep Field / Radio / Compact programs.[/i]"
+			"[i]No deep-field survey active — unlock "
+			+ "[b]space_optical[/b], [b]radio[/b], "
+			+ "or [b]xray_gamma[/b] tiers (see Tech) to start Deep Field / Radio / Compact programs.[/i]"
 		)
 	else:
 		_survey_hint.text = (
@@ -907,7 +908,7 @@ func render_detail(state: Dictionary, requirements_map: Dictionary) -> void:
 		lines.append("")
 		lines.append(
 			"[color=#99aacc][i]Visualization:[/i] LAB is rendered as layered translucent shells "
-			"(false-color science metaphor), not a true Lyman-alpha radiative-transfer volume.[/color]"
+			+ "(false-color science metaphor), not a true Lyman-alpha radiative-transfer volume.[/color]"
 		)
 	var meta: Dictionary = _scene_for_filter.get("metadata", {})
 	var teach: String = str(meta.get("teaching_summary", ""))

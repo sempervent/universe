@@ -59,6 +59,15 @@ uv run universe demo godot --clear-overrides
 
 Or in the editor: **Project → Open User Data Folder** → delete `overrides.json`.
 
+### Script resolution errors
+
+If the editor reports `Could not resolve script "res://scripts/TelescopeConsole.gd"`:
+
+1. Run `uv run universe demo check` (validates required `.gd` files and `res://` references).
+2. Ensure you opened `frontends/godot/project.godot`, not a parent folder.
+3. Confirm `scripts/TelescopeConsole.gd` exists with exact casing.
+4. Reload the project; if the file exists but still fails, open `TelescopeConsole.gd` in Godot — a **parse error** in that file (or its preloads) surfaces as “unresolved script”.
+
 ## Data flow
 
 ```

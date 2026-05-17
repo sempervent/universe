@@ -1,16 +1,23 @@
-; Godot 4 project file for the universe telescope frontend prototype.
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
 ;
-; To open: launch Godot 4.x and import this project.godot.
-; To run: press F5 (Main.tscn is the main scene).
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
+
+[animation]
+
+compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
 config/name="universe — Telescope Frontend"
 config/description="Engine-agnostic cosmic discovery prototype rendered in Godot 4."
 run/main_scene="res://scenes/Main.tscn"
-config/features=PackedStringArray("4.2", "Forward Plus")
+config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]

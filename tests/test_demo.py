@@ -19,8 +19,27 @@ from universe.demo import (
     prepare_html_demo,
     run_demo_check,
 )
+from universe.godot_integrity import REQUIRED_GODOT_SCRIPTS
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _write_minimal_godot_scaffold(base: Path) -> None:
+    """Minimal Godot tree so integrity + demo check pass in tmp_path tests."""
+    godot = base / "frontends" / "godot"
+    (godot / "scenes").mkdir(parents=True, exist_ok=True)
+    (godot / "scripts").mkdir(parents=True, exist_ok=True)
+    (godot / "scenes" / "Main.tscn").write_text(
+        '[ext_resource type="Script" path="res://scripts/Main.gd" id="1"]\n'
+        '[node name="Main" type="Node3D"]\n'
+        "script = ExtResource(\"1\")\n",
+        encoding="utf-8",
+    )
+    for rel in REQUIRED_GODOT_SCRIPTS:
+        path = godot / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        body = "extends CanvasLayer\n" if rel.endswith("TelescopeConsole.gd") else "extends Node\n"
+        path.write_text(body, encoding="utf-8")
 
 
 class TestDemoHelpers:
@@ -58,6 +77,7 @@ class TestPrepareGodotDemo:
         (tmp_path / "frontends" / "godot" / "project.godot").write_text(
             'config/name="test"\n', encoding="utf-8"
         )
+        _write_minimal_godot_scaffold(tmp_path)
 
         paths = ensure_all_campaign_scenes(tmp_path)
         assert len(paths) == 6
@@ -72,6 +92,7 @@ class TestPrepareGodotDemo:
         (tmp_path / "frontends" / "godot" / "project.godot").write_text(
             'config/name="test"\n', encoding="utf-8"
         )
+        _write_minimal_godot_scaffold(tmp_path)
         ensure_all_campaign_scenes(tmp_path)
 
         state = create_game_state(
@@ -97,6 +118,7 @@ class TestPrepareGodotDemo:
         (tmp_path / "frontends" / "godot" / "project.godot").write_text(
             'config/name="test"\n', encoding="utf-8"
         )
+        _write_minimal_godot_scaffold(tmp_path)
         result = prepare_godot_demo(repo_root=tmp_path, reset=True)
         assert result.success
         manifest = tmp_path / "frontends" / "godot" / "data" / "manifest.json"
@@ -125,6 +147,7 @@ class TestDemoCheck:
         (tmp_path / "frontends" / "godot" / "project.godot").write_text(
             'config/name="test"\n', encoding="utf-8"
         )
+        _write_minimal_godot_scaffold(tmp_path)
         prepare_godot_demo(repo_root=tmp_path, reset=True)
         check = run_demo_check(tmp_path)
         assert check.ok
@@ -143,6 +166,7 @@ class TestDemoCli:
         (tmp_path / "frontends" / "godot" / "project.godot").write_text(
             'config/name="test"\n', encoding="utf-8"
         )
+        _write_minimal_godot_scaffold(tmp_path)
         runner = CliRunner()
         with patch("universe.demo.find_repo_root", return_value=tmp_path):
             result = runner.invoke(
@@ -190,6 +214,7 @@ class TestDemoCli:
         (tmp_path / "frontends" / "godot" / "project.godot").write_text(
             'config/name="test"\n', encoding="utf-8"
         )
+        _write_minimal_godot_scaffold(tmp_path)
         runner = CliRunner()
         with patch("universe.demo.find_repo_root", return_value=tmp_path):
             with patch("universe.demo.detect_godot_binary", return_value=None):
@@ -199,6 +224,16 @@ class TestDemoCli:
                 )
         assert result.exit_code != 0
         assert "Godot binary" in result.output
+
+
+class TestDemoGodotIntegrity:
+    def test_demo_check_validates_telescope_console_script(self):
+        from universe.demo import run_demo_check
+
+        check = run_demo_check(REPO_ROOT)
+        tc = [c for c in check.checks if "TelescopeConsole.gd" in c[0]]
+        assert tc, "expected TelescopeConsole.gd check"
+        assert tc[0][1], tc[0][2]
 
 
 class TestJustfile:

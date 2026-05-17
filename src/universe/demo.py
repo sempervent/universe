@@ -364,6 +364,17 @@ def prepare_godot_demo(
         result.success = False
         result.errors.extend(f"Missing: {m}" for m in missing)
 
+    from universe.godot_integrity import godot_project_complete, validate_godot_project
+
+    if godot_project_complete(root):
+        integrity = validate_godot_project(root)
+        if not integrity.ok:
+            result.success = False
+            for p in integrity.missing_paths:
+                result.errors.append(f"Missing Godot file: {p}")
+            for src, ref in integrity.broken_references:
+                result.errors.append(f"Broken Godot reference in {src}: {ref}")
+
     result.godot_binary = detect_godot_binary()
     result.godot_user_data_dir = find_godot_user_data_dir(root)
     if result.godot_user_data_dir:
@@ -557,6 +568,41 @@ def run_demo_check(repo_root: Path | None = None) -> DemoCheckResult:
 
     pg = root / "frontends" / "godot" / "project.godot"
     add("Godot project", pg.is_file(), "frontends/godot/project.godot")
+
+    from universe.godot_integrity import (
+        REQUIRED_GODOT_SCRIPTS,
+        godot_project_complete,
+        validate_godot_project,
+    )
+
+    if godot_project_complete(root):
+        main_tscn = root / "frontends" / "godot" / "scenes" / "Main.tscn"
+        add("Godot Main.tscn", main_tscn.is_file(), "frontends/godot/scenes/Main.tscn")
+
+        godot_root = root / "frontends" / "godot"
+        for script_rel in REQUIRED_GODOT_SCRIPTS:
+            sp = godot_root / script_rel
+            add(
+                f"godot {script_rel}",
+                sp.is_file(),
+                str(sp.relative_to(root)) if sp.is_file() else "missing",
+            )
+
+        integrity = validate_godot_project(root)
+        if integrity.broken_references:
+            for src, ref in integrity.broken_references[:5]:
+                add(f"godot ref {ref}", False, f"from {src}")
+            if len(integrity.broken_references) > 5:
+                warnings.append(
+                    f"{len(integrity.broken_references) - 5} more broken res:// references"
+                )
+        else:
+            add("godot res:// script refs", True, "all resolved")
+    else:
+        warnings.append(
+            "Godot script scaffold incomplete — ensure frontends/godot/ is fully checked out"
+        )
+        add("godot project scaffold", False, "missing Main.gd or Main.tscn")
 
     binary = detect_godot_binary()
     if binary:

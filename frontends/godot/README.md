@@ -68,6 +68,18 @@ frontends/godot/
 If Godot shows the wrong scene, delete `user://overrides.json` (see
 `--clear-overrides` on `universe demo godot`) or use **Project → Open User Data Folder**.
 
+### Troubleshooting
+
+**`Could not resolve script "res://scripts/TelescopeConsole.gd"`**
+
+Usually a **parse error inside** `TelescopeConsole.gd` (Godot reports it as unresolved), not a missing file.
+
+1. `uv run universe demo check` — verifies scripts exist and `res://` paths resolve.
+2. Open **`frontends/godot/project.godot`** (not the repo root).
+3. Confirm `frontends/godot/scripts/TelescopeConsole.gd` exists (exact casing).
+4. In Godot: **Project → Reload Current Project** after pulling fixes.
+5. Only if paths are correct: clear `.godot/` cache under `frontends/godot/` and reopen.
+
 ### Campaign scene picker (Observing Program tab)
 
 Godot **cannot** run Python generators. Use the **Campaign** tab (right panel) to:

@@ -61,6 +61,7 @@ Verify artifacts: `uv run universe demo check`. Browser fallback: `uv run univer
 | Wrong scene loads in Godot | Delete `user://overrides.json` (Project → Open User Data Folder) or `uv run universe demo godot --clear-overrides` |
 | Godot not installed | Use HTML demo: `uv run universe demo html --open` |
 | Godot data out of date | Re-run `uv run universe demo godot` (refreshes `frontends/godot/data/`) |
+| `Could not resolve script res://scripts/TelescopeConsole.gd` | Run `uv run universe demo check`; open `frontends/godot/project.godot`; fix parse errors in that script (file usually exists) |
 
 See [manual playtest](docs/manual-playtest.md) and [Godot frontend](docs/godot-frontend.md).
 
