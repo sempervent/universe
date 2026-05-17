@@ -124,6 +124,8 @@
 
 ## Phase 4b: Godot playability & telescope feel ✅ (prototype scope)
 
+- **Observatory View** (default): instrument/sky-dome perspective; **Scene Map** retains floating 3D debug layout (toggle **V**).
+
 - ✅ 3D object picking (`Area3D` + camera raycast); selection synced with list + detail + log.
 - ✅ **Scene 001 deep-field polish:** scene classification, Mpc normalization, filament polylines with control points, LAB / quasar / black-hole / magnetar differentiation, node markers, signal-mode tables, console survey hints + object filters, `user://overrides.json` smoke path (see `docs/godot-frontend.md`, `frontends/godot/README.md`).
 - ✅ Orbit / zoom / pan camera (`TelescopeCamera.gd`); F focus, R reset, L labels.

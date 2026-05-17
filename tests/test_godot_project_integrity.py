@@ -46,6 +46,21 @@ class TestGodotResReferences:
         assert 'preload("res://scripts/TelescopeConsole.gd")' in main_gd
         assert (GODOT_ROOT / "scripts" / "TelescopeConsole.gd").is_file()
 
+    def test_observatory_view_wired_in_godot(self):
+        main_gd = (GODOT_ROOT / "scripts" / "Main.gd").read_text(encoding="utf-8")
+        console_gd = (GODOT_ROOT / "scripts" / "TelescopeConsole.gd").read_text(encoding="utf-8")
+        assert (GODOT_ROOT / "scripts" / "ObservatoryRenderer.gd").is_file()
+        assert "ObservatoryRenderer" in main_gd
+        assert "Observatory View" in console_gd
+        assert "Scene Map" in console_gd
+
+    def test_docs_mention_observatory_and_scene_map(self):
+        doc = (REPO_ROOT / "docs" / "godot-frontend.md").read_text(encoding="utf-8")
+        manual = (REPO_ROOT / "docs" / "manual-playtest.md").read_text(encoding="utf-8")
+        assert "Observatory" in doc
+        assert "Scene Map" in doc
+        assert "Observatory" in manual or "telescope view" in manual.lower()
+
     def test_main_tscn_references_main_gd(self):
         tscn = (GODOT_ROOT / "scenes" / "Main.tscn").read_text(encoding="utf-8")
         paths = extract_res_paths(tscn)

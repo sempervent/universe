@@ -1,8 +1,10 @@
 extends Node3D
 # Main — entry point for the Godot telescope frontend prototype.
 #
-# Wires TelescopeCamera (orbit/zoom/pick ray), SkyRenderer (pick areas +
-# discovery visuals + signal modes), and TelescopeConsole.
+# Wires TelescopeCamera, ObservatoryRenderer (default play view),
+# SkyRenderer (Scene Map / debug), and TelescopeConsole.
+
+enum ViewMode { OBSERVATORY, SCENE_MAP }
 
 const TechTreeS := preload("res://scripts/TechTree.gd")
 const SceneLoaderS := preload("res://scripts/SceneLoader.gd")
@@ -11,6 +13,7 @@ const DiscoveryEngineS := preload("res://scripts/DiscoveryEngine.gd")
 const SurveyEngineS := preload("res://scripts/SurveyEngine.gd")
 const MilestoneEngineS := preload("res://scripts/MilestoneEngine.gd")
 const SkyRendererS := preload("res://scripts/SkyRenderer.gd")
+const ObservatoryRendererS := preload("res://scripts/ObservatoryRenderer.gd")
 const TelescopeConsoleS := preload("res://scripts/TelescopeConsole.gd")
 const TelescopeCameraS := preload("res://scripts/TelescopeCamera.gd")
 const EntityModifiersS := preload("res://scripts/EntityModifiers.gd")
@@ -34,9 +37,11 @@ var _state_path: String = ""
 var _last_save_path: String = ""
 
 var sky: SkyRenderer = null
+var observatory: ObservatoryRenderer = null
 var console: TelescopeConsole = null
 var camera: TelescopeCamera = null
 var world_env: WorldEnvironment = null
+var _view_mode: ViewMode = ViewMode.OBSERVATORY
 
 
 func _ready() -> void:
@@ -50,8 +55,11 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_L:
-			console.toggle_labels_from_hotkey()
+		match event.keycode:
+			KEY_L:
+				console.toggle_labels_from_hotkey()
+			KEY_V:
+				_toggle_view_mode()
 
 
 func _setup_3d() -> void:
@@ -77,10 +85,18 @@ func _setup_3d() -> void:
 	world_env.environment = env
 	add_child(world_env)
 
+	observatory = ObservatoryRendererS.new()
+	observatory.name = "ObservatoryRenderer"
+	add_child(observatory)
+	observatory.object_picked.connect(_on_object_picked)
+
 	sky = SkyRendererS.new()
 	sky.name = "SkyRenderer"
+	sky.visible = false
 	add_child(sky)
 	sky.object_picked.connect(_on_object_picked)
+
+	camera.observatory_mode = true
 
 
 func _setup_console() -> void:
@@ -105,6 +121,8 @@ func _setup_console() -> void:
 	console.action_campaign_load_and_set.connect(_on_campaign_load_and_set_scene)
 	console.action_campaign_refresh.connect(refresh_campaign_ui)
 	console.action_observe_transient.connect(_on_observe_transient)
+	console.action_view_mode_changed.connect(_on_view_mode_changed)
+	console.set_view_mode("observatory")
 
 
 func _load_signal_modes_json() -> Array:
@@ -276,24 +294,75 @@ func _on_campaign_load_and_set_scene(scene_id: String) -> void:
 	load_and_set_campaign_scene(scene_id)
 
 
+func _active_renderer() -> Node3D:
+	if _view_mode == ViewMode.OBSERVATORY:
+		return observatory
+	return sky
+
+
+func _is_observatory_view() -> bool:
+	return _view_mode == ViewMode.OBSERVATORY
+
+
+func _toggle_view_mode() -> void:
+	if _view_mode == ViewMode.OBSERVATORY:
+		_set_view_mode(ViewMode.SCENE_MAP)
+	else:
+		_set_view_mode(ViewMode.OBSERVATORY)
+
+
+func _set_view_mode(mode: ViewMode) -> void:
+	_view_mode = mode
+	var obs := _is_observatory_view()
+	observatory.visible = obs
+	sky.visible = not obs
+	camera.set_observatory_mode(obs)
+	_apply_camera_framing()
+	_render_all()
+	var label: String = "Observatory" if obs else "Scene Map (Debug)"
+	_log("View: %s (V to toggle)" % label, "#aaccff")
+	if console:
+		console.set_view_mode("observatory" if obs else "scene_map")
+
+
+func _on_view_mode_changed(mode_id: String) -> void:
+	if mode_id == "scene_map":
+		_set_view_mode(ViewMode.SCENE_MAP)
+	else:
+		_set_view_mode(ViewMode.OBSERVATORY)
+
+
 func _apply_camera_framing() -> void:
-	camera.apply_scene_framing(
-		sky.is_deep_field_scene(),
-		sky.get_default_camera_target(),
-		sky.get_default_camera_fit_radius(),
-	)
+	var active: Node3D = _active_renderer()
+	var deep: bool = false
+	var aim: Vector3 = Vector3.ZERO
+	var fit: float = 12.0
+	if active is ObservatoryRenderer:
+		var o: ObservatoryRenderer = active as ObservatoryRenderer
+		deep = o.is_deep_field_scene()
+		aim = o.get_default_camera_target()
+		fit = o.get_default_camera_fit_radius()
+	elif active is SkyRenderer:
+		var s: SkyRenderer = active as SkyRenderer
+		deep = s.is_deep_field_scene()
+		aim = s.get_default_camera_target()
+		fit = s.get_default_camera_fit_radius()
+	camera.apply_scene_framing(deep, aim, fit)
 
 
 func _render_all() -> void:
 	state = TransientEngineS.update_states(state, transient_defs)
+	var mode: String = console.get_signal_mode()
+	var sel: String = console.selected_id()
+	var labels_on: bool = console.is_labels_visible()
+
+	observatory.render_scene(scene_data, state, requirements_map)
+	observatory.apply_visual_state(state, requirements_map, mode, sel, labels_on)
 	sky.render_scene(scene_data, state, requirements_map)
-	sky.apply_visual_state(
-		state,
-		requirements_map,
-		console.get_signal_mode(),
-		console.selected_id(),
-		console.is_labels_visible(),
-	)
+	sky.apply_visual_state(state, requirements_map, mode, sel, labels_on)
+
+	observatory.visible = _is_observatory_view()
+	sky.visible = not _is_observatory_view()
 	console.set_scene_objects(
 		SceneLoaderS.get_objects(scene_data),
 		state,
@@ -302,12 +371,19 @@ func _render_all() -> void:
 	)
 	var mod: Dictionary = EntityModifiersS.modifier_for_state(state, entity_modifiers)
 	console.render_header(
-		state, scene_data, _last_save_path, _scene_path, mod, objective_defs, _state_path
+		state,
+		scene_data,
+		_last_save_path,
+		_scene_path,
+		mod,
+		objective_defs,
+		_state_path,
+		"observatory" if _is_observatory_view() else "scene_map",
 	)
 	console.render_signal_mode_help(console.get_signal_mode(), SceneLoaderS.is_deep_field_scene(scene_data))
 	console.render_survey_hint(scene_data, state, surveys_map)
 	refresh_campaign_ui()
-	console.render_detail(state, requirements_map)
+	console.render_detail(state, requirements_map, _is_observatory_view())
 	console.render_tech_tree(state, tech_tree, entity_modifiers)
 	console.render_surveys(state, surveys, surveys_map, entity_modifiers)
 	console.render_milestones(state, milestones, entity_modifiers)
@@ -373,18 +449,30 @@ func _on_focus_selected() -> void:
 	if oid == "":
 		_log("Nothing selected to focus (F).", "#ffaa88")
 		return
-	var pos := sky.get_object_world_position(oid)
-	var rad := sky.get_object_radius(oid)
+	var active: Node3D = _active_renderer()
+	var pos: Vector3 = Vector3.ZERO
+	var rad: float = 1.0
+	if active is ObservatoryRenderer:
+		var o: ObservatoryRenderer = active as ObservatoryRenderer
+		pos = o.get_object_world_position(oid)
+		rad = o.get_object_radius(oid)
+	elif active is SkyRenderer:
+		var s: SkyRenderer = active as SkyRenderer
+		pos = s.get_object_world_position(oid)
+		rad = s.get_object_radius(oid)
 	camera.focus_on(pos, rad)
-	_log("Camera focused on %s." % oid, "#7799cc")
+	var verb: String = "Centered on sky target" if _is_observatory_view() else "Camera focused on"
+	_log("%s %s." % [verb, oid], "#7799cc")
 
 
 func _on_toggle_labels(on: bool) -> void:
+	observatory.toggle_labels(on)
 	sky.toggle_labels(on)
 	_render_all()
 
 
 func _on_signal_mode_changed(mode: String) -> void:
+	observatory.set_signal_mode(mode)
 	sky.set_signal_mode(mode)
 	_apply_environment_for_signal(mode)
 	console.render_signal_mode_help(mode, SceneLoaderS.is_deep_field_scene(scene_data))
@@ -408,15 +496,13 @@ func _on_export_state() -> void:
 
 func _on_object_picked(object_id: String) -> void:
 	console.set_selected(object_id)
+	observatory.highlight(object_id)
 	sky.highlight(object_id)
-	sky.apply_visual_state(
-		state,
-		requirements_map,
-		console.get_signal_mode(),
-		object_id,
-		console.is_labels_visible(),
-	)
-	console.render_detail(state, requirements_map)
+	var mode: String = console.get_signal_mode()
+	var labels_on: bool = console.is_labels_visible()
+	observatory.apply_visual_state(state, requirements_map, mode, object_id, labels_on)
+	sky.apply_visual_state(state, requirements_map, mode, object_id, labels_on)
+	console.render_detail(state, requirements_map, _is_observatory_view())
 
 
 func _on_observe_transient(event_id: String) -> void:

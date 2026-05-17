@@ -2,7 +2,9 @@
 
 ## Engine frontend notes
 
-**Godot 4** uses simplified meshes (spheres, torus accretion placeholders,
+**Godot 4** default play is **Observatory View** (sky dome, apparent targets).
+**Scene Map** is the debug spatial layout (spheres at true/generated positions).
+Simplified meshes (billboards on dome, torus accretion placeholders in Scene Map,
 segmented filament cylinders, stacked LAB shells) for **playable** readability;
 see `docs/godot-frontend.md`.
 

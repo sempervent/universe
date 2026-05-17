@@ -24,6 +24,7 @@ signal action_campaign_set_active(scene_id: String)
 signal action_campaign_load_and_set(scene_id: String)
 signal action_campaign_refresh()
 signal action_observe_transient(event_id: String)
+signal action_view_mode_changed(mode_id: String)
 
 const PANEL_BG := Color(0.04, 0.05, 0.08, 0.92)
 const TEXT_DIM := Color(0.65, 0.7, 0.85)
@@ -56,6 +57,8 @@ var _btn_campaign_refresh: Button
 var _selected_campaign_id: String = ""
 var _labels_toggle: CheckBox
 var _signal_option: OptionButton
+var _view_option: OptionButton
+var _view_mode_id: String = "observatory"
 var _signal_help: RichTextLabel
 var _survey_hint: RichTextLabel
 var _object_filter: OptionButton
@@ -162,6 +165,16 @@ func render_signal_mode_help(mode: String, deep_field: bool = false) -> void:
 	_signal_help.text = "[i]%s[/i]" % body
 
 
+func set_view_mode(mode_id: String) -> void:
+	_view_mode_id = mode_id
+	if _view_option == null:
+		return
+	for i in _view_option.item_count:
+		if _view_option.get_item_metadata(i) == mode_id:
+			_view_option.select(i)
+			return
+
+
 func render_header(
 	state: Dictionary,
 	scene: Dictionary,
@@ -170,12 +183,21 @@ func render_header(
 	entity_modifier: Dictionary = {},
 	objective_defs: Array = [],
 	state_file_path: String = "",
+	view_mode_id: String = "observatory",
 ) -> void:
 	var entity: Dictionary = state.get("research_entity", {})
 	var name: String = entity.get("name", "Unnamed Research Entity")
 	var motto: String = entity.get("motto", "")
 	_header_label.text = name
 	var pieces := PackedStringArray()
+	if view_mode_id == "scene_map":
+		pieces.append("View: Scene Map (debug — not primary telescope view)")
+	else:
+		pieces.append("View: Observatory / Telescope")
+	pieces.append("Instrument tier: %s" % state.get("active_telescope_tier", "naked_eye"))
+	pieces.append("Signal: %s" % _signal_mode.replace("_", " "))
+	if view_mode_id == "observatory":
+		pieces.append("FOV: %s" % ("Wide" if _signal_mode == "visible_light" else "Instrument overlay"))
 	if _SceneLoader.is_deep_field_scene(scene):
 		if scene.get("id", "") == "scene-001":
 			pieces.append("Scene kind: Deep Field · High-z protocluster")
@@ -196,7 +218,6 @@ func render_header(
 			"Background: %s — %s"
 			% [str(entity_modifier.get("name", "?")), str(entity_modifier.get("description", ""))]
 		)
-	pieces.append("Telescope: %s" % state.get("active_telescope_tier", "naked_eye"))
 	pieces.append("RP: %d" % int(state.get("research_points", 0)))
 	pieces.append("Turn: %d" % int(state.get("turn", 0)))
 	pieces.append("Scene: %s" % scene.get("name", "?"))
@@ -378,6 +399,15 @@ func _build_left_panel() -> void:
 	panel.add_child(vb)
 
 	vb.add_child(_label("Controls", 11, TEXT_DIM))
+	vb.add_child(_label("View mode (V)", 10, TEXT_DIM))
+	_view_option = OptionButton.new()
+	_view_option.add_item("Observatory View", 0)
+	_view_option.set_item_metadata(0, "observatory")
+	_view_option.add_item("Scene Map (Debug)", 1)
+	_view_option.set_item_metadata(1, "scene_map")
+	_view_option.select(0)
+	_view_option.item_selected.connect(_on_view_mode_selected)
+	vb.add_child(_view_option)
 	var btn_obs := Button.new()
 	btn_obs.text = "Observe Selected"
 	btn_obs.pressed.connect(func(): action_observe.emit())
@@ -444,6 +474,11 @@ func _build_left_panel() -> void:
 func _on_signal_selected(idx: int) -> void:
 	_signal_mode = _signal_option.get_item_text(idx)
 	action_signal_mode_changed.emit(_signal_mode)
+
+
+func _on_view_mode_selected(idx: int) -> void:
+	_view_mode_id = str(_view_option.get_item_metadata(idx))
+	action_view_mode_changed.emit(_view_mode_id)
 
 
 func _build_right_panel() -> void:
@@ -876,9 +911,19 @@ func _on_object_filter_selected(_idx: int) -> void:
 
 
 
-func render_detail(state: Dictionary, requirements_map: Dictionary) -> void:
+func render_detail(
+	state: Dictionary,
+	requirements_map: Dictionary,
+	observatory_view: bool = true,
+) -> void:
 	if _selected_id == "":
-		_detail_text.text = "[i]Select an object in the list or click in the 3D view. Keys: F focus, R reset camera, L labels.[/i]"
+		var hint := (
+			"[i]Select a sky target in the list or click in the telescope view. "
+			+ "Keys: F center target, R reset view, L labels, V toggle Scene Map.[/i]"
+			if observatory_view
+			else "[i]Select an object or click in Scene Map (debug). Keys: F, R, L, V.[/i]"
+		)
+		_detail_text.text = hint
 		return
 	var obj: Dictionary = _find_object(_selected_id)
 	if obj.is_empty():
@@ -893,6 +938,10 @@ func render_detail(state: Dictionary, requirements_map: Dictionary) -> void:
 	else:
 		lines.append("[b]Unclassified Source[/b]")
 	lines.append("[color=#7799cc]Type:[/color] %s" % obj.get("type", "?"))
+	if observatory_view:
+		lines.append("[color=#7799cc]Perspective:[/color] Observed from local sky / instrument")
+	else:
+		lines.append("[color=#7799cc]Perspective:[/color] Scene Map spatial layout (debug)")
 	lines.append("[color=#7799cc]Status:[/color] %s (%d%%)" % [label, int(round(conf * 100))])
 	if disc.has("detected_signals") and disc["detected_signals"].size() > 0:
 		lines.append("[color=#7799cc]Detected:[/color] %s" % ", ".join(disc["detected_signals"]))

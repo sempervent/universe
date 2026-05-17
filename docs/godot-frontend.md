@@ -28,6 +28,27 @@ Non-goals for this prototype:
 - Orbital mechanics or scientifically accurate motion.
 - A full asset pipeline (no binary art committed).
 
+## Observatory View (primary) vs Scene Map (debug)
+
+**Default play mode is Observatory View** — the Research Entity looks through
+instruments from a fixed observer (Earth / observatory). Scene objects appear
+as **sky targets** on an inner celestial dome (deterministic azimuth/elevation
+from scene metadata or stable pseudo-coordinates). Signal modes change emphasis
+and overlays; the camera pans the sky and zooms FOV — it does **not** fly
+through a toy solar-system diorama.
+
+**Scene Map** keeps the earlier floating 3D spatial layout (`SkyRenderer`) for
+debugging generated geometry (filaments, Mpc positions, campaign structure).
+Toggle in the left panel **View mode** dropdown or press **V**.
+
+| Symptom | Likely cause |
+|---|---|
+| Planets appear as a cluster of nearby balls | You are in **Scene Map**, not Observatory View — press **V** or choose **Observatory View**. |
+| Sky looks empty | Wrong signal mode or undiscovered faint targets; upgrade telescope tier. |
+
+Controls (Observatory): drag to pan sky, wheel to zoom FOV, click target to
+select, **F** center selection, **R** reset view, **L** labels, **V** toggle view.
+
 ## Project location
 
 ```
@@ -87,7 +108,7 @@ Python CLI ──┬─ generate solar-system ─→ data/generated/solar-system
                                                     ↓
                           SceneLoader / GameState load JSON dicts
                                                     ↓
-              SkyRenderer (3D) + TelescopeCamera + TelescopeConsole (UI)
+     ObservatoryRenderer (sky dome) + SkyRenderer (Scene Map) + TelescopeCamera + UI
                                                     ↓
                   Player actions mutate state → Save State writes back
 ```
@@ -105,7 +126,9 @@ uv run universe game export-godot-data --out frontends/godot/data
 
 | File | Role |
 |---|---|
-| `Main.gd` | Orchestrator. Wires camera ray-pick, sky rebuild, console, environment tint per signal mode. |
+| `Main.gd` | Orchestrator. View mode (Observatory default / Scene Map), camera ray-pick, both renderers, console. |
+| `ObservatoryRenderer.gd` | Primary play view: celestial dome, sky targets, signal overlays, picking. |
+| `SkyProjection.gd` | Deterministic azimuth/elevation and apparent-size helpers for observatory layout. |
 | `FilePaths.gd` | Autoload. Resolves repo-relative paths and an optional `user://overrides.json`. |
 | `SceneLoader.gd` | Parses scene.json with minimal validation helpers. |
 | `GameState.gd` | Load/save game state. Provides `default_state()` and `ensure_backward_compatibility()`. |
@@ -114,8 +137,8 @@ uv run universe game export-godot-data --out frontends/godot/data
 | `SurveyEngine.gd` | Survey status, start, claim, per-discovery progress. |
 | `MilestoneEngine.gd` | Predicate-based milestone evaluator with auto-claim. |
 | `EntityModifiers.gd` | Loads `entity_modifiers.json`; effective tier costs, survey/milestone rewards, discovery RP/confidence nudges (mirrors Python). |
-| `TelescopeCamera.gd` | Orbital camera: drag orbit, wheel zoom, middle / Shift+drag pan, F/R, tap-to-pick ray. |
-| `SkyRenderer.gd` | Builds meshes + `Area3D` pick spheres, `Label3D` names, discovery materials, signal-mode emphasis. |
+| `TelescopeCamera.gd` | Observatory (fixed observer, pan/zoom FOV) or Scene Map orbit camera; F/R/V; pick ray. |
+| `SkyRenderer.gd` | Scene Map only: spatial meshes + pick areas, labels, discovery/signal visuals. |
 | `TelescopeConsole.gd` | CanvasLayer UI: signal mode dropdown + help, labels toggle, reset/export, tabs, log. |
 | `TransientEngine.gd` | Turn-window transient events (mirrors `universe.game.transients`). |
 

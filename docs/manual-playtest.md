@@ -14,6 +14,10 @@ uv run universe demo check
 
 Open the Godot project (`frontends/godot/project.godot`) and press Play.
 
+**Expected default view:** Observatory / telescope perspective (sky dome, not a
+cluster of nearby planet spheres). If you see floating balls in space, press **V**
+or switch **View mode** to **Observatory View** (Scene Map is debug-only).
+
 Equivalent manual steps (if you prefer granular CLI):
 
 ```bash
@@ -34,7 +38,7 @@ uv run universe demo html --scene solar-system --reset --open
 | Step | Action | Expected UI cue | Expected state change | Bug notes |
 |------|--------|-----------------|----------------------|-----------|
 | 1 | Name entity / confirm objective | Header shows entity name; Objectives tab shows active tutorial objective; “Next action” line | `research_entity` set; `active_objective_ids` populated | |
-| 2 | Observe local sky | Object list non-empty; Observe works | Discovery progress, RP possible | |
+| 2 | Observe local sky (Observatory View) | Sky dome / targets visible; header says **View: Observatory**; Observe works | Discovery progress, RP possible | Scene Map (V) shows spatial debug layout only |
 | 3 | Start / complete First Light | Objective card updates; next objective activates | `objectives.*.status` completed; RP awarded | |
 | 4 | Upgrade telescope | Tech tab shows affordable tier; upgrade succeeds | `unlocked_tiers`, RP spent | |
 | 5 | Observe solar transient (when active) | Transients tab: **Active** group; button “Observe: …” | Transient reward, log entry | |

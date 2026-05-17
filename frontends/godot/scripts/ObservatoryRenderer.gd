@@ -1,0 +1,407 @@
+class_name ObservatoryRenderer
+extends Node3D
+## Observatory / telescope view — objects as sky targets on a celestial dome.
+## The observer is fixed at the origin; this is not a free-flying spatial map.
+
+signal object_picked(object_id: String)
+
+const TYPE_COLORS := SkyRenderer.TYPE_COLORS
+
+var signal_mode: String = "visible_light"
+
+var _id_to_entry: Dictionary = {}
+var _labels_visible: bool = true
+var _selected_id: String = ""
+var _scene_ref: Dictionary = {}
+var _requirements_map: Dictionary = {}
+var _is_deep_field: bool = false
+var _camera_aim_dir: Vector3 = Vector3(0, 0.4, 1).normalized()
+var _camera_fit_angle: float = 0.35
+var _pulse_materials: Array[StandardMaterial3D] = []
+var _cmb_dome: MeshInstance3D = null
+var _filament_segments: Array[Dictionary] = []
+
+
+func _process(_delta: float) -> void:
+	var t: float = Time.get_ticks_msec() * 0.003
+	for m in _pulse_materials:
+		if m != null:
+			m.emission_energy_multiplier = 0.45 + 0.55 * sin(t)
+
+
+func is_deep_field_scene() -> bool:
+	return _is_deep_field
+
+
+func get_default_camera_target() -> Vector3:
+	return _camera_aim_dir * SkyProjection.DOME_RADIUS * 0.5
+
+
+func get_default_camera_fit_radius() -> float:
+	return _camera_fit_angle * SkyProjection.DOME_RADIUS
+
+
+func set_signal_mode(mode: String) -> void:
+	signal_mode = mode
+
+
+func toggle_labels(on: bool) -> void:
+	_labels_visible = on
+	for e in _id_to_entry.values():
+		var lbl: Label3D = e.get("label", null)
+		if lbl:
+			lbl.visible = on
+
+
+func highlight(selected_id: String) -> void:
+	_selected_id = selected_id
+	for oid in _id_to_entry.keys():
+		var e: Dictionary = _id_to_entry[oid]
+		var holder: Node3D = e.get("holder", null)
+		if holder:
+			holder.scale = Vector3.ONE * (1.35 if oid == selected_id else 1.0)
+
+
+func get_object_world_position(object_id: String) -> Vector3:
+	var e: Dictionary = _id_to_entry.get(object_id, {})
+	var h: Node3D = e.get("holder", null)
+	if h:
+		return h.global_position
+	return _camera_aim_dir * SkyProjection.DOME_RADIUS
+
+
+func get_object_radius(object_id: String) -> float:
+	var e: Dictionary = _id_to_entry.get(object_id, {})
+	return float(e.get("size", 1.0))
+
+
+func render_scene(scene: Dictionary, state: Dictionary, requirements: Dictionary) -> void:
+	for child in get_children():
+		child.queue_free()
+	_id_to_entry.clear()
+	_pulse_materials.clear()
+	_filament_segments.clear()
+	_cmb_dome = null
+	_scene_ref = scene
+	_requirements_map = requirements
+	_is_deep_field = SceneLoader.is_deep_field_scene(scene)
+
+	_build_sky_backdrop()
+	_build_horizon()
+
+	for obj in SceneLoader.get_objects(scene):
+		if not (obj is Dictionary):
+			continue
+		var otype: String = str(obj.get("type", ""))
+		if otype == "cmb_background":
+			continue
+		if otype == "observatory":
+			continue
+		_place_sky_target(obj as Dictionary)
+
+	if _is_deep_field:
+		_build_deep_field_overlays(scene)
+		_build_cmb_dome()
+
+	_update_camera_hints(scene)
+	apply_visual_state(state, requirements, signal_mode, _selected_id, _labels_visible)
+
+
+func _build_sky_backdrop() -> void:
+	var dome := MeshInstance3D.new()
+	dome.name = "SkyDome"
+	var sp := SphereMesh.new()
+	sp.radius = SkyProjection.DOME_RADIUS * 1.02
+	sp.height = sp.radius * 2.0
+	dome.mesh = sp
+	var mat := StandardMaterial3D.new()
+	mat.cull_mode = BaseMaterial3D.CULL_FRONT
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	if _is_deep_field:
+		mat.albedo_color = Color(0.01, 0.015, 0.04)
+	else:
+		mat.albedo_color = Color(0.01, 0.02, 0.06)
+	dome.material_override = mat
+	add_child(dome)
+
+
+func _build_horizon() -> void:
+	var ring := MeshInstance3D.new()
+	ring.name = "Horizon"
+	var tor := TorusMesh.new()
+	tor.inner_radius = SkyProjection.DOME_RADIUS * 0.92
+	tor.outer_radius = SkyProjection.DOME_RADIUS * 0.94
+	tor.rings = 48
+	ring.mesh = tor
+	ring.rotation_degrees = Vector3(90, 0, 0)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.04, 0.05, 0.08, 0.35)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring.material_override = mat
+	add_child(ring)
+
+
+func _place_sky_target(obj: Dictionary) -> void:
+	var oid: String = str(obj.get("id", ""))
+	var otype: String = str(obj.get("type", ""))
+	var angles: Vector2 = SkyProjection.object_to_sky_angles(obj, _scene_ref)
+	var az: float = angles.x
+	var el: float = angles.y
+	var pos: Vector3 = SkyProjection.dome_position(az, el)
+	var dir: Vector3 = pos.normalized()
+
+	var holder := Node3D.new()
+	holder.name = oid
+	holder.position = pos
+	holder.look_at(pos + dir, Vector3.UP)
+	add_child(holder)
+
+	var size: float = SkyProjection.angular_size_on_dome(obj, _scene_ref)
+	var base: Color = TYPE_COLORS.get(otype, Color(0.7, 0.75, 0.85)) as Color
+	var bright: float = SkyProjection.apparent_brightness(obj)
+
+	var mesh := MeshInstance3D.new()
+	mesh.name = "Target"
+	var sphere := SphereMesh.new()
+	sphere.radius = size
+	sphere.height = size * 2.0
+	mesh.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(base.r, base.g, base.b, clampf(0.35 + bright * 0.55, 0.2, 1.0))
+	mat.emission_enabled = otype in ["star", "quasar", "magnetar"] or bright > 0.7
+	mat.emission = base
+	mat.emission_energy_multiplier = 0.4 + bright * 1.2
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	if otype == "lyman_alpha_blob":
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.albedo_color.a = 0.35
+	mesh.material_override = mat
+	holder.add_child(mesh)
+
+	var area := Area3D.new()
+	area.name = "PickArea"
+	var shape := CollisionShape3D.new()
+	var ss := SphereShape3D.new()
+	ss.radius = maxf(size * 1.4, 0.8)
+	shape.shape = ss
+	area.add_child(shape)
+	holder.add_child(area)
+
+	var label := Label3D.new()
+	label.name = "Label"
+	label.text = str(obj.get("name", oid))
+	label.font_size = 22
+	label.modulate = Color(0.85, 0.92, 1, 0.85)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.position = dir * (size + 1.2)
+	label.visible = false
+	holder.add_child(label)
+
+	_id_to_entry[oid] = {
+		"holder": holder,
+		"mesh": mesh,
+		"mat": mat,
+		"label": label,
+		"area": area,
+		"base_color": base,
+		"otype": otype,
+		"size": size,
+		"obj": obj,
+		"dir": dir,
+	}
+
+
+func _build_deep_field_overlays(scene: Dictionary) -> void:
+	var root := Node3D.new()
+	root.name = "DeepFieldOverlays"
+	add_child(root)
+	for fil in scene.get("filaments", []):
+		if not (fil is Dictionary):
+			continue
+		var pts: Array = fil.get("control_points_mpc", [])
+		if pts.size() < 2:
+			continue
+		var a0: Vector3 = _mpc_to_dir(pts[0] as Dictionary)
+		var a1: Vector3 = _mpc_to_dir(pts[pts.size() - 1] as Dictionary)
+		_add_filament_arc(root, a0, a1)
+
+
+func _mpc_to_dir(d: Dictionary) -> Vector3:
+	var fake := {"position_mpc": d}
+	return SkyProjection.direction_from_angles(
+		SkyProjection.object_to_sky_angles(fake, _scene_ref).x,
+		SkyProjection.object_to_sky_angles(fake, _scene_ref).y,
+	)
+
+
+func _add_filament_arc(parent: Node3D, dir_a: Vector3, dir_b: Vector3) -> void:
+	var seg := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.08
+	cyl.bottom_radius = 0.08
+	var mid: Vector3 = (dir_a + dir_b).normalized() * SkyProjection.DOME_RADIUS
+	var h: float = (dir_a * SkyProjection.DOME_RADIUS - dir_b * SkyProjection.DOME_RADIUS).length()
+	cyl.height = maxf(h, 2.0)
+	seg.mesh = cyl
+	seg.position = mid
+	seg.look_at(mid + mid.normalized(), Vector3.UP)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.45, 0.35, 0.75, 0.25)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	seg.material_override = mat
+	parent.add_child(seg)
+	_filament_segments.append({"mat": mat})
+
+
+func _build_cmb_dome() -> void:
+	var mesh := MeshInstance3D.new()
+	var sp := SphereMesh.new()
+	sp.radius = SkyProjection.DOME_RADIUS * 0.98
+	sp.height = sp.radius * 2.0
+	mesh.mesh = sp
+	var mat := StandardMaterial3D.new()
+	mat.cull_mode = BaseMaterial3D.CULL_FRONT
+	mat.albedo_color = Color(0.15, 0.05, 0.05, 0.08)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mesh.material_override = mat
+	add_child(mesh)
+	_cmb_dome = mesh
+
+
+func _update_camera_hints(scene: Dictionary) -> void:
+	var meta: Dictionary = scene.get("metadata", {}) as Dictionary
+	var aim_id: String = str(meta.get("recommended_camera_target_object_id", ""))
+	if aim_id != "" and _id_to_entry.has(aim_id):
+		var e: Dictionary = _id_to_entry[aim_id]
+		_camera_aim_dir = e.get("dir", Vector3.UP) as Vector3
+	else:
+		for pref in ["sun", "moon", "lyman_alpha_blob", "quasar"]:
+			for oid in _id_to_entry.keys():
+				var e: Dictionary = _id_to_entry[oid]
+				if str(e.get("otype", "")) == pref or oid == pref:
+					_camera_aim_dir = e.get("dir", Vector3.UP) as Vector3
+					break
+			if _camera_aim_dir != Vector3.UP:
+				break
+	_camera_fit_angle = 0.28
+
+
+func apply_visual_state(
+	state: Dictionary,
+	requirements: Dictionary,
+	mode: String,
+	selected_id: String,
+	labels_on: bool,
+) -> void:
+	_requirements_map = requirements
+	signal_mode = mode
+	_selected_id = selected_id
+	_labels_visible = labels_on
+	_pulse_materials.clear()
+
+	for oid in _id_to_entry.keys():
+		var e: Dictionary = _id_to_entry[oid]
+		var mat: StandardMaterial3D = e.get("mat", null)
+		var label: Label3D = e.get("label", null)
+		var obj: Dictionary = e.get("obj", {}) as Dictionary
+		var otype: String = str(e.get("otype", ""))
+		var base: Color = e.get("base_color", Color.WHITE) as Color
+		var disc: Dictionary = state.get("discoveries", {}).get(oid, {}) as Dictionary
+		var conf: float = float(disc.get("confidence", 0.0))
+		var emphasis: float = _mode_emphasis(otype, mode, requirements.get(otype, {}) as Dictionary)
+		var band: String = _discovery_band(conf)
+		if mat:
+			_apply_discovery_material(mat, base, otype, band, emphasis)
+		if band == "anomaly" and mat and mat.emission_enabled:
+			_pulse_materials.append(mat)
+		var show_lbl: bool = labels_on and _should_show_label(oid, otype, conf, selected_id)
+		if label:
+			label.visible = show_lbl
+			label.text = _label_text(obj, conf)
+			if oid == selected_id:
+				label.modulate = Color(1, 1, 0.88, 1.0)
+			else:
+				label.modulate = Color(0.82, 0.9, 1, 0.75)
+
+	if _cmb_dome and _cmb_dome.material_override is StandardMaterial3D:
+		var cmat: StandardMaterial3D = _cmb_dome.material_override
+		cmat.albedo_color.a = 0.42 if mode == "microwave" else 0.08
+
+	for seg in _filament_segments:
+		var fmat: StandardMaterial3D = seg.get("mat", null)
+		if fmat:
+			fmat.albedo_color.a = 0.55 if mode in ["weak_lensing", "dark_matter_inference"] else 0.1
+
+	highlight(selected_id)
+
+
+func _mode_emphasis(otype: String, mode: String, req: Dictionary) -> float:
+	if req.is_empty():
+		return 0.35
+	var required: Array = req.get("required_signal_types", [])
+	var optional: Array = req.get("optional_signal_types", [])
+	if mode in required:
+		return 1.0
+	if mode in optional:
+		return 0.65
+	if mode == "visible_light":
+		return 0.45
+	return 0.12
+
+
+func _discovery_band(conf: float) -> String:
+	if conf < 0.25:
+		return "undiscovered"
+	if conf < 0.50:
+		return "anomaly"
+	if conf < 0.75:
+		return "candidate"
+	if conf < 0.95:
+		return "confirmed"
+	return "characterized"
+
+
+func _apply_discovery_material(
+	mat: StandardMaterial3D,
+	base: Color,
+	otype: String,
+	band: String,
+	emphasis: float,
+) -> void:
+	var dim := 0.15 + emphasis * 0.85
+	match band:
+		"undiscovered":
+			mat.albedo_color = Color(base.r * 0.2, base.g * 0.2, base.b * 0.25, 0.25 * dim)
+			mat.emission_enabled = false
+		"anomaly":
+			mat.albedo_color = Color(base.r * 0.5, base.g * 0.5, base.b * 0.6, 0.45 * dim)
+			mat.emission_enabled = true
+			mat.emission = base
+			mat.emission_energy_multiplier = 0.8
+		_:
+			mat.albedo_color = Color(base.r * dim, base.g * dim, base.b * dim, clampf(0.5 + emphasis * 0.4, 0.25, 1.0))
+			mat.emission_enabled = band in ["confirmed", "characterized"]
+			mat.emission = base
+			mat.emission_energy_multiplier = 0.35 + emphasis * 0.5
+
+
+func _should_show_label(oid: String, otype: String, conf: float, selected_id: String) -> bool:
+	if oid == selected_id:
+		return true
+	if conf >= 0.5:
+		return true
+	if otype in ["star", "moon", "planet", "quasar", "lyman_alpha_blob"]:
+		return conf >= 0.25
+	return false
+
+
+func _label_text(obj: Dictionary, conf: float) -> String:
+	var name: String = str(obj.get("name", ""))
+	if conf < 0.25:
+		return "%s (?)" % name
+	if conf < 0.50:
+		return "%s · anomaly" % name
+	if conf < 0.75:
+		return "%s · candidate" % name
+	return name

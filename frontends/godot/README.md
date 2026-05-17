@@ -8,9 +8,11 @@ discover → survey → milestone loop.
 ## Status
 
 - ✅ Loads `scene.json` and `game-state.json` from the parent repo
-- ✅ Renders solar-system (log-radial AU layout) and **deep-field** scenes (Mpc positions normalized by `size_mpc`, cosmic-web nodes, filaments through **control points** as thin cylinders, layered LAB shells, quasar jets, black-hole accretion torus placeholder, CMB shell)
-- ✅ **3D picking** — click spheres in the viewport (ray + `Area3D`); selection syncs with list + detail + log
-- ✅ **Telescope camera** — orbit, zoom, pan, **F** focus selection, **R** reset, **L** toggles labels (checkbox + hotkey)
+- ✅ **Observatory View (default)** — sky dome / instrument perspective; solar-system and deep-field objects as apparent sky targets (`ObservatoryRenderer` + `SkyProjection`)
+- ✅ **Scene Map (debug)** — floating 3D spatial layout (`SkyRenderer`); toggle via **V** or View mode dropdown
+- ✅ Renders solar-system and **deep-field** scenes in both modes (Scene Map: log-radial AU / Mpc layout; Observatory: deterministic sky projection)
+- ✅ **3D picking** — click targets in the viewport (ray + `Area3D`); selection syncs with list + detail + log
+- ✅ **Telescope camera** — Observatory pan/zoom FOV or Scene Map orbit; **F** center/focus, **R** reset, **L** labels, **V** view toggle
 - ✅ **Signal visualization modes** — palette + emphasize/dim by instrument (from `discovery_requirements.json` + heuristics)
 - ✅ **Discovery visuals** — materials reflect confidence band; selected object gets a highlight pass
 - ✅ Observatory console UI (header, object list, detail, tech tree, surveys, milestones, **Campaign / Observing Program** tab, log, reset + export JSON)
@@ -40,8 +42,10 @@ frontends/godot/
     DiscoveryEngine.gd   ← confidence + RP award (mirrors Python)
     SurveyEngine.gd      ← survey status / start / claim / progress
     MilestoneEngine.gd   ← milestone predicates + auto-claim
-    SkyRenderer.gd       ← Node3D builder, pick areas, labels, signal-mode visuals
-    TelescopeCamera.gd   ← orbit / zoom / pan / pick-threshold camera
+    ObservatoryRenderer.gd ← primary sky-dome telescope view
+    SkyProjection.gd       ← deterministic sky angles / apparent size
+    SkyRenderer.gd         ← Scene Map spatial builder (debug)
+    TelescopeCamera.gd     ← observatory or orbit camera; pick threshold
     TelescopeConsole.gd  ← CanvasLayer UI overlay
   data/
     *.json               ← committed copy of `game export-godot-data`
