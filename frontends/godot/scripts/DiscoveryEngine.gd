@@ -118,3 +118,72 @@ static func award_points(
 
 static func confidence_label(c: float) -> String:
 	return _label(c)
+
+
+static func observe_blocked_reason(
+	obj: Dictionary,
+	state: Dictionary,
+	tree: Array,
+	requirements_map: Dictionary,
+	active_signal_mode: String,
+) -> String:
+	var calc: Dictionary = calculate_confidence(
+		obj, state, tree, requirements_map,
+	)
+	if float(calc.get("confidence", 0.0)) >= 0.01:
+		return ""
+
+	var obj_type: String = str(obj.get("type", ""))
+	var req: Dictionary = requirements_map.get(obj_type, {}) as Dictionary
+	var min_tier: int = int(req.get("minimum_telescope_tier", 0))
+	var have_tier: int = TechTree.max_tier_index(tree, state)
+	if have_tier < min_tier:
+		return "Blocked: telescope tier too low for this target."
+
+	var known := {}
+	for s in TechTree.all_known_signal_types(tree, state):
+		known[s] = true
+	var required: Array = req.get("required_signal_types", [])
+	var have_required := 0
+	for s in required:
+		if known.has(s):
+			have_required += 1
+	if required.size() > 0 and have_required == 0:
+		return "Blocked: unlock instrument channels that detect this signal type."
+
+	if active_signal_mode not in required and active_signal_mode not in req.get("optional_signal_types", []):
+		if required.size() > 0 and active_signal_mode != "visible_light":
+			return "Blocked: switch signal mode or upgrade instruments for this channel."
+
+	return "Blocked: insufficient sensitivity/resolution for a detection."
+
+
+static func observe_outcome_message(
+	prev_conf: float,
+	new_conf: float,
+	is_new: bool,
+	is_upgrade: bool,
+) -> String:
+	if new_conf < 0.01:
+		return "No detection — instrument cannot resolve this target yet."
+	if is_new:
+		if new_conf < 0.25:
+			return "Weak anomaly — keep observing."
+		if new_conf < 0.50:
+			return "New signal anomaly registered."
+		if new_conf < 0.75:
+			return "New discovery candidate."
+		if new_conf < 0.95:
+			return "New confirmed detection."
+		return "New characterized source."
+	if is_upgrade:
+		if new_conf < 0.50:
+			return "Follow-up: anomaly strengthened."
+		if new_conf < 0.75:
+			return "Follow-up: upgraded to candidate."
+		if new_conf < 0.95:
+			return "Follow-up: upgraded to confirmed."
+		return "Follow-up: fully characterized."
+	if absf(new_conf - prev_conf) < 0.05:
+		return "No new data — repeat observation or try another signal mode."
+	return "Marginal update — confidence unchanged."

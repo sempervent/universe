@@ -38,7 +38,9 @@ uv run universe demo html --scene solar-system --reset --open
 | Step | Action | Expected UI cue | Expected state change | Bug notes |
 |------|--------|-----------------|----------------------|-----------|
 | 1 | Name entity / confirm objective | Header shows entity name; Objectives tab shows active tutorial objective; “Next action” line | `research_entity` set; `active_objective_ids` populated | |
-| 2 | Observe local sky (Observatory View) | Sky dome / targets visible; header says **View: Observatory**; Observe works | Discovery progress, RP possible | Scene Map (V) shows spatial debug layout only |
+| 2 | Observe local sky (Observatory View) | Reticle + FOV ring; HUD shows instrument/signal/FOV; header **View: Observatory**; naked eye hides faint moons/asteroids | Discovery progress, RP possible | Scene Map (V) shows spatial debug layout only |
+| 2b | Upgrade telescope | More sky targets become full brightness | Galilean moons, outer planets, etc. | |
+| 2c | Switch signal modes | Log + help text explain instrument; sky emphasis changes | Radio/X-ray/lensing overlays | |
 | 3 | Start / complete First Light | Objective card updates; next objective activates | `objectives.*.status` completed; RP awarded | |
 | 4 | Upgrade telescope | Tech tab shows affordable tier; upgrade succeeds | `unlocked_tiers`, RP spent | |
 | 5 | Observe solar transient (when active) | Transients tab: **Active** group; button “Observe: …” | Transient reward, log entry | |

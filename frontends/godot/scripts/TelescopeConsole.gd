@@ -71,6 +71,7 @@ var _selected_id: String = ""
 var _signal_mode: String = "visible_light"
 var _reset_dialog: ConfirmationDialog = null
 var _export_window: Window = null
+var _viewfinder: TelescopeOverlay = null
 
 
 func _ready() -> void:
@@ -145,7 +146,7 @@ func render_signal_mode_help(mode: String, deep_field: bool = false) -> void:
 	else:
 		match mode:
 			"visible_light":
-				body = "Optical / human-band metaphor: stars, planets, resolved galaxies emphasized."
+				body = "Stars, planets, and resolved disks emphasized."
 			"radio":
 				body = "Long-wavelength view: radio-bright quasars, galaxies, magnetars; planets dimmed."
 			"microwave":
@@ -162,6 +163,11 @@ func render_signal_mode_help(mode: String, deep_field: bool = false) -> void:
 				body = "[color=#ffaa77][b]FICTIONAL / SPECULATIVE[/b][/color] — causality-violating \"now\" view for late-game flavor only."
 			_:
 				body = "Visualization emphasis derived from discovery requirement signal lists where possible."
+	var lead: String = InstrumentVisibility.signal_mode_blurb(mode)
+	if body != "":
+		body = "%s %s" % [lead, body]
+	else:
+		body = lead
 	_signal_help.text = "[i]%s[/i]" % body
 
 
@@ -191,7 +197,7 @@ func render_header(
 	_header_label.text = name
 	var pieces := PackedStringArray()
 	if view_mode_id == "scene_map":
-		pieces.append("View: Scene Map (debug — not primary telescope view)")
+		pieces.append("View: Scene Map / Debug")
 	else:
 		pieces.append("View: Observatory / Telescope")
 	pieces.append("Instrument tier: %s" % state.get("active_telescope_tier", "naked_eye"))
@@ -352,6 +358,33 @@ func _build_ui() -> void:
 	_build_left_panel()
 	_build_right_panel()
 	_build_log_panel()
+	_build_viewfinder()
+
+
+func _build_viewfinder() -> void:
+	_viewfinder = TelescopeOverlay.new()
+	_viewfinder.name = "TelescopeOverlay"
+	add_child(_viewfinder)
+
+
+func update_viewfinder(
+	observatory_active: bool,
+	tier_name: String,
+	signal_mode: String,
+	fov_degrees: float,
+	selected_name: String,
+	has_selection: bool,
+) -> void:
+	if _viewfinder == null:
+		return
+	_viewfinder.set_observatory_active(observatory_active)
+	if observatory_active:
+		_viewfinder.update_hud(tier_name, signal_mode, fov_degrees, selected_name, has_selection)
+
+
+func flash_viewfinder() -> void:
+	if _viewfinder != null:
+		_viewfinder.flash_observe()
 
 
 func _build_header() -> void:
@@ -915,6 +948,7 @@ func render_detail(
 	state: Dictionary,
 	requirements_map: Dictionary,
 	observatory_view: bool = true,
+	tree: Array = [],
 ) -> void:
 	if _selected_id == "":
 		var hint := (
@@ -940,6 +974,15 @@ func render_detail(
 	lines.append("[color=#7799cc]Type:[/color] %s" % obj.get("type", "?"))
 	if observatory_view:
 		lines.append("[color=#7799cc]Perspective:[/color] Observed from local sky / instrument")
+		if not tree.is_empty():
+			var vis: Dictionary = InstrumentVisibility.evaluate(
+				obj, _scene_for_filter, state, tree, requirements_map, _signal_mode,
+			)
+			var vis_s: String = str(vis.get("visibility", "full"))
+			lines.append("[color=#7799cc]Sky visibility:[/color] %s" % vis_s)
+			var vr: String = str(vis.get("reason", ""))
+			if vr != "":
+				lines.append("[i]%s[/i]" % vr)
 	else:
 		lines.append("[color=#7799cc]Perspective:[/color] Scene Map spatial layout (debug)")
 	lines.append("[color=#7799cc]Status:[/color] %s (%d%%)" % [label, int(round(conf * 100))])

@@ -13,6 +13,8 @@ discover → survey → milestone loop.
 - ✅ Renders solar-system and **deep-field** scenes in both modes (Scene Map: log-radial AU / Mpc layout; Observatory: deterministic sky projection)
 - ✅ **3D picking** — click targets in the viewport (ray + `Area3D`); selection syncs with list + detail + log
 - ✅ **Telescope camera** — Observatory pan/zoom FOV or Scene Map orbit; **F** center/focus, **R** reset, **L** labels, **V** view toggle
+- ✅ **Viewfinder overlay** — reticle, FOV ring, tier/signal HUD, target lock (`TelescopeOverlay.gd`)
+- ✅ **Tier/signal visibility** — hide/dim sky targets by instrument (`InstrumentVisibility.gd`)
 - ✅ **Signal visualization modes** — palette + emphasize/dim by instrument (from `discovery_requirements.json` + heuristics)
 - ✅ **Discovery visuals** — materials reflect confidence band; selected object gets a highlight pass
 - ✅ Observatory console UI (header, object list, detail, tech tree, surveys, milestones, **Campaign / Observing Program** tab, log, reset + export JSON)

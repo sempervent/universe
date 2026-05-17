@@ -49,6 +49,29 @@ Toggle in the left panel **View mode** dropdown or press **V**.
 Controls (Observatory): drag to pan sky, wheel to zoom FOV, click target to
 select, **F** center selection, **R** reset view, **L** labels, **V** toggle view.
 
+### Viewfinder overlay
+
+Observatory View draws a lightweight **reticle**, faint **FOV ring**, and HUD
+lines for **instrument tier**, **signal mode**, and **FOV** (degrees / Wide /
+Medium / Narrow). A **target lock** frame appears when a sky object is selected.
+Observe actions flash the viewfinder briefly on success.
+
+### Target visibility (tier + signal)
+
+`InstrumentVisibility.gd` (Godot-only) decides whether each sky target is:
+
+| State | Meaning |
+|---|---|
+| **full** | Bright/selectable for current tier and signal mode |
+| **dim** | At the edge of capability — visible but faint |
+| **hidden** | Not shown in the sky (may still appear in the object list) |
+
+Rules are approximate: naked eye shows Sun/Moon/bright planets; ground optical
+reveals Galilean moons and more; space optical unlocks deep-field sources; radio /
+microwave / X-ray / lensing modes emphasize matching object types. Previously
+discovered targets (confidence ≥ 25%) stay at least **dim**. Object detail shows
+**Sky visibility** and a short reason when dim or hidden.
+
 ## Project location
 
 ```

@@ -202,3 +202,9 @@ func _pan_sky(rel: Vector2) -> void:
 	yaw -= rel.x * orbit_sensitivity
 	pitch -= rel.y * orbit_sensitivity
 	_refresh_transform()
+
+
+func get_observatory_fov_degrees() -> float:
+	if observatory_mode:
+		return fov
+	return 0.0

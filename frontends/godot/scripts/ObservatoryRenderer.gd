@@ -14,6 +14,8 @@ var _labels_visible: bool = true
 var _selected_id: String = ""
 var _scene_ref: Dictionary = {}
 var _requirements_map: Dictionary = {}
+var _tech_tree: Array = []
+var _state_ref: Dictionary = {}
 var _is_deep_field: bool = false
 var _camera_aim_dir: Vector3 = Vector3(0, 0.4, 1).normalized()
 var _camera_fit_angle: float = 0.35
@@ -75,7 +77,17 @@ func get_object_radius(object_id: String) -> float:
 	return float(e.get("size", 1.0))
 
 
-func render_scene(scene: Dictionary, state: Dictionary, requirements: Dictionary) -> void:
+func get_visibility_reason(object_id: String) -> String:
+	var e: Dictionary = _id_to_entry.get(object_id, {})
+	return str(e.get("visibility_reason", ""))
+
+
+func render_scene(
+	scene: Dictionary,
+	state: Dictionary,
+	requirements: Dictionary,
+	tree: Array = [],
+) -> void:
 	for child in get_children():
 		child.queue_free()
 	_id_to_entry.clear()
@@ -83,7 +95,9 @@ func render_scene(scene: Dictionary, state: Dictionary, requirements: Dictionary
 	_filament_segments.clear()
 	_cmb_dome = null
 	_scene_ref = scene
+	_state_ref = state
 	_requirements_map = requirements
+	_tech_tree = tree
 	_is_deep_field = SceneLoader.is_deep_field_scene(scene)
 
 	_build_sky_backdrop()
@@ -104,7 +118,7 @@ func render_scene(scene: Dictionary, state: Dictionary, requirements: Dictionary
 		_build_cmb_dome()
 
 	_update_camera_hints(scene)
-	apply_visual_state(state, requirements, signal_mode, _selected_id, _labels_visible)
+	apply_visual_state(state, requirements, signal_mode, _selected_id, _labels_visible, tree)
 
 
 func _build_sky_backdrop() -> void:
@@ -157,6 +171,12 @@ func _place_sky_target(obj: Dictionary) -> void:
 	add_child(holder)
 
 	var size: float = SkyProjection.angular_size_on_dome(obj, _scene_ref)
+	if oid == "sun":
+		size = minf(size, 9.0)
+	elif oid.begins_with("moon-") and oid != "moon":
+		size = minf(size, 1.2)
+	elif otype in ["asteroid", "comet"]:
+		size = minf(size, 0.75)
 	var base: Color = TYPE_COLORS.get(otype, Color(0.7, 0.75, 0.85)) as Color
 	var bright: float = SkyProjection.apparent_brightness(obj)
 
@@ -175,6 +195,12 @@ func _place_sky_target(obj: Dictionary) -> void:
 	if otype == "lyman_alpha_blob":
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mat.albedo_color.a = 0.35
+	elif otype == "black_hole":
+		mat.albedo_color = Color(0.35, 0.15, 0.55, 0.5)
+		mat.emission_enabled = true
+		mat.emission = Color(0.5, 0.2, 0.8)
+	elif otype == "quasar":
+		mat.emission_energy_multiplier = 1.4
 	mesh.material_override = mat
 	holder.add_child(mesh)
 
@@ -250,7 +276,7 @@ func _add_filament_arc(parent: Node3D, dir_a: Vector3, dir_b: Vector3) -> void:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	seg.material_override = mat
 	parent.add_child(seg)
-	_filament_segments.append({"mat": mat})
+	_filament_segments.append({"mat": mat, "mesh": seg})
 
 
 func _build_cmb_dome() -> void:
@@ -293,8 +319,12 @@ func apply_visual_state(
 	mode: String,
 	selected_id: String,
 	labels_on: bool,
+	tree: Array = [],
 ) -> void:
 	_requirements_map = requirements
+	_state_ref = state
+	if not tree.is_empty():
+		_tech_tree = tree
 	signal_mode = mode
 	_selected_id = selected_id
 	_labels_visible = labels_on
@@ -304,34 +334,62 @@ func apply_visual_state(
 		var e: Dictionary = _id_to_entry[oid]
 		var mat: StandardMaterial3D = e.get("mat", null)
 		var label: Label3D = e.get("label", null)
+		var holder: Node3D = e.get("holder", null)
+		var area: Area3D = e.get("area", null)
 		var obj: Dictionary = e.get("obj", {}) as Dictionary
 		var otype: String = str(e.get("otype", ""))
 		var base: Color = e.get("base_color", Color.WHITE) as Color
 		var disc: Dictionary = state.get("discoveries", {}).get(oid, {}) as Dictionary
 		var conf: float = float(disc.get("confidence", 0.0))
+		var vis_info: Dictionary = InstrumentVisibility.evaluate(
+			obj, _scene_ref, state, _tech_tree, requirements, mode,
+		)
+		var vis: String = str(vis_info.get("visibility", InstrumentVisibility.FULL))
 		var emphasis: float = _mode_emphasis(otype, mode, requirements.get(otype, {}) as Dictionary)
+		if vis == InstrumentVisibility.HIDDEN:
+			emphasis *= 0.05
+		elif vis == InstrumentVisibility.DIM:
+			emphasis *= 0.35
 		var band: String = _discovery_band(conf)
+		if holder:
+			holder.visible = vis != InstrumentVisibility.HIDDEN or oid == selected_id
+		if area:
+			area.monitorable = vis != InstrumentVisibility.HIDDEN
+			area.input_ray_pickable = bool(vis_info.get("pickable", true))
 		if mat:
 			_apply_discovery_material(mat, base, otype, band, emphasis)
+			if mode == "speculative_now_signal" and otype in ["quasar", "magnetar", "black_hole"]:
+				mat.emission = Color(0.9, 0.4, 1.0)
+				mat.emission_enabled = true
 		if band == "anomaly" and mat and mat.emission_enabled:
 			_pulse_materials.append(mat)
+		if otype == "magnetar" and mode in ["xray", "gamma_ray", "radio"]:
+			if mat:
+				_pulse_materials.append(mat)
 		var show_lbl: bool = labels_on and _should_show_label(oid, otype, conf, selected_id)
 		if label:
-			label.visible = show_lbl
+			label.visible = show_lbl and vis != InstrumentVisibility.HIDDEN
 			label.text = _label_text(obj, conf)
 			if oid == selected_id:
 				label.modulate = Color(1, 1, 0.88, 1.0)
 			else:
 				label.modulate = Color(0.82, 0.9, 1, 0.75)
+		e["visibility"] = vis
+		e["visibility_reason"] = str(vis_info.get("reason", ""))
 
 	if _cmb_dome and _cmb_dome.material_override is StandardMaterial3D:
 		var cmat: StandardMaterial3D = _cmb_dome.material_override
-		cmat.albedo_color.a = 0.42 if mode == "microwave" else 0.08
+		cmat.albedo_color.a = 0.48 if mode == "microwave" else 0.06
+		_cmb_dome.visible = mode == "microwave" or TechTree.max_tier_index(_tech_tree, state) >= 4
 
 	for seg in _filament_segments:
 		var fmat: StandardMaterial3D = seg.get("mat", null)
+		var fmesh: MeshInstance3D = seg.get("mesh", null)
+		var show_fil: bool = mode in ["weak_lensing", "dark_matter_inference"]
 		if fmat:
-			fmat.albedo_color.a = 0.55 if mode in ["weak_lensing", "dark_matter_inference"] else 0.1
+			fmat.albedo_color.a = 0.58 if show_fil else 0.08
+		if fmesh:
+			fmesh.visible = show_fil or TechTree.max_tier_index(_tech_tree, state) >= 5
 
 	highlight(selected_id)
 

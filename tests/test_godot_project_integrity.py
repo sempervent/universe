@@ -49,10 +49,19 @@ class TestGodotResReferences:
     def test_observatory_view_wired_in_godot(self):
         main_gd = (GODOT_ROOT / "scripts" / "Main.gd").read_text(encoding="utf-8")
         console_gd = (GODOT_ROOT / "scripts" / "TelescopeConsole.gd").read_text(encoding="utf-8")
+        obs_gd = (GODOT_ROOT / "scripts" / "ObservatoryRenderer.gd").read_text(encoding="utf-8")
         assert (GODOT_ROOT / "scripts" / "ObservatoryRenderer.gd").is_file()
+        assert (GODOT_ROOT / "scripts" / "InstrumentVisibility.gd").is_file()
+        assert (GODOT_ROOT / "scripts" / "TelescopeOverlay.gd").is_file()
         assert "ObservatoryRenderer" in main_gd
         assert "Observatory View" in console_gd
         assert "Scene Map" in console_gd
+        assert "InstrumentVisibility" in obs_gd
+        assert "TelescopeOverlay" in console_gd or "viewfinder" in console_gd.lower()
+        assert "_observatory_needs_rebuild" in main_gd
+        assert "Optical view:" in (GODOT_ROOT / "scripts" / "InstrumentVisibility.gd").read_text(
+            encoding="utf-8"
+        )
 
     def test_docs_mention_observatory_and_scene_map(self):
         doc = (REPO_ROOT / "docs" / "godot-frontend.md").read_text(encoding="utf-8")

@@ -42,6 +42,9 @@ var console: TelescopeConsole = null
 var camera: TelescopeCamera = null
 var world_env: WorldEnvironment = null
 var _view_mode: ViewMode = ViewMode.OBSERVATORY
+var _observatory_needs_rebuild: bool = true
+var _sky_needs_rebuild: bool = true
+var _scene_map_warned: bool = false
 
 
 func _ready() -> void:
@@ -49,8 +52,16 @@ func _ready() -> void:
 	_setup_console()
 	_load_static_data()
 	_load_scene_and_state()
+	_observatory_needs_rebuild = true
+	_sky_needs_rebuild = true
 	_render_all()
 	_apply_camera_framing()
+	_update_viewfinder()
+
+
+func _process(_delta: float) -> void:
+	if _is_observatory_view():
+		_update_viewfinder()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -249,6 +260,8 @@ func load_catalog_scene(scene_id: String) -> bool:
 	if not SceneLoaderS.validate_scene_minimal(scene_data):
 		_log("[!] Invalid scene at %s" % _scene_path, "#ff8888")
 		return false
+	_observatory_needs_rebuild = true
+	_sky_needs_rebuild = true
 	_apply_scene_signal_mode_from_metadata()
 	_log("Loaded scene: %s" % scene_data.get("name", scene_id), "#88ff99")
 	_render_all()
@@ -317,8 +330,19 @@ func _set_view_mode(mode: ViewMode) -> void:
 	observatory.visible = obs
 	sky.visible = not obs
 	camera.set_observatory_mode(obs)
+	if obs:
+		_observatory_needs_rebuild = true
+	else:
+		_sky_needs_rebuild = true
+		if not _scene_map_warned:
+			_scene_map_warned = true
+			_log(
+				"Scene Map shows generated spatial layout, not the primary observing perspective.",
+				"#ffaa66",
+			)
 	_apply_camera_framing()
 	_render_all()
+	_update_viewfinder()
 	var label: String = "Observatory" if obs else "Scene Map (Debug)"
 	_log("View: %s (V to toggle)" % label, "#aaccff")
 	if console:
@@ -356,10 +380,16 @@ func _render_all() -> void:
 	var sel: String = console.selected_id()
 	var labels_on: bool = console.is_labels_visible()
 
-	observatory.render_scene(scene_data, state, requirements_map)
-	observatory.apply_visual_state(state, requirements_map, mode, sel, labels_on)
-	sky.render_scene(scene_data, state, requirements_map)
-	sky.apply_visual_state(state, requirements_map, mode, sel, labels_on)
+	if _is_observatory_view():
+		if _observatory_needs_rebuild:
+			observatory.render_scene(scene_data, state, requirements_map, tech_tree)
+			_observatory_needs_rebuild = false
+		observatory.apply_visual_state(state, requirements_map, mode, sel, labels_on, tech_tree)
+	else:
+		if _sky_needs_rebuild:
+			sky.render_scene(scene_data, state, requirements_map)
+			_sky_needs_rebuild = false
+		sky.apply_visual_state(state, requirements_map, mode, sel, labels_on)
 
 	observatory.visible = _is_observatory_view()
 	sky.visible = not _is_observatory_view()
@@ -383,13 +413,37 @@ func _render_all() -> void:
 	console.render_signal_mode_help(console.get_signal_mode(), SceneLoaderS.is_deep_field_scene(scene_data))
 	console.render_survey_hint(scene_data, state, surveys_map)
 	refresh_campaign_ui()
-	console.render_detail(state, requirements_map, _is_observatory_view())
+	console.render_detail(state, requirements_map, _is_observatory_view(), tech_tree)
 	console.render_tech_tree(state, tech_tree, entity_modifiers)
 	console.render_surveys(state, surveys, surveys_map, entity_modifiers)
 	console.render_milestones(state, milestones, entity_modifiers)
 	console.render_transients(state, transient_defs, scene_data, tech_tree)
 	console.render_objectives(state, objective_defs)
 	_apply_environment_for_signal(console.get_signal_mode())
+	_update_viewfinder()
+
+
+func _update_viewfinder() -> void:
+	if console == null or camera == null:
+		return
+	var tier_id: String = str(state.get("active_telescope_tier", "naked_eye"))
+	var tier_name: String = tier_id
+	var tm: Dictionary = TechTreeS.tier_map(tech_tree)
+	if tm.has(tier_id):
+		tier_name = str((tm[tier_id] as Dictionary).get("name", tier_id))
+	var sel: String = console.selected_id()
+	var sel_name: String = ""
+	if sel != "":
+		var obj: Dictionary = _find_object(sel)
+		sel_name = str(obj.get("name", sel))
+	console.update_viewfinder(
+		_is_observatory_view(),
+		tier_name,
+		console.get_signal_mode(),
+		camera.get_observatory_fov_degrees(),
+		sel_name,
+		sel != "",
+	)
 
 
 func _apply_environment_for_signal(mode: String) -> void:
@@ -477,7 +531,8 @@ func _on_signal_mode_changed(mode: String) -> void:
 	_apply_environment_for_signal(mode)
 	console.render_signal_mode_help(mode, SceneLoaderS.is_deep_field_scene(scene_data))
 	_render_all()
-	_log("Signal view: %s" % mode, "#aaccff")
+	var blurb: String = InstrumentVisibility.signal_mode_blurb(mode)
+	_log("Signal: %s — %s" % [mode.replace("_", " "), blurb], "#aaccff")
 
 
 func _on_reset_state() -> void:
@@ -500,9 +555,14 @@ func _on_object_picked(object_id: String) -> void:
 	sky.highlight(object_id)
 	var mode: String = console.get_signal_mode()
 	var labels_on: bool = console.is_labels_visible()
-	observatory.apply_visual_state(state, requirements_map, mode, object_id, labels_on)
-	sky.apply_visual_state(state, requirements_map, mode, object_id, labels_on)
-	console.render_detail(state, requirements_map, _is_observatory_view())
+	observatory.apply_visual_state(state, requirements_map, mode, object_id, labels_on, tech_tree)
+	if not _is_observatory_view():
+		sky.apply_visual_state(state, requirements_map, mode, object_id, labels_on)
+	var obj: Dictionary = _find_object(object_id)
+	var nm: String = str(obj.get("name", object_id))
+	_log("Selected: %s (%s)" % [nm, obj.get("type", "?")], "#aaccff")
+	console.render_detail(state, requirements_map, _is_observatory_view(), tech_tree)
+	_update_viewfinder()
 
 
 func _on_observe_transient(event_id: String) -> void:
@@ -525,8 +585,23 @@ func _on_observe() -> void:
 	if oid == "":
 		_log("Select an object first.")
 		return
+	var obj: Dictionary = _find_object(oid)
+	if obj.is_empty():
+		return
+	var blocked: String = DiscoveryEngineS.observe_blocked_reason(
+		obj, state, tech_tree, requirements_map, console.get_signal_mode(),
+	)
+	if blocked != "":
+		_log(blocked, "#ff8888")
+		if _is_observatory_view():
+			var vis_reason: String = observatory.get_visibility_reason(oid)
+			if vis_reason != "":
+				_log("  ↳ %s" % vis_reason, "#ffaa88")
+		return
 	state["turn"] = int(state.get("turn", 0)) + 1
-	_observe_one(oid)
+	var got_data: bool = _observe_one(oid)
+	if got_data and _is_observatory_view():
+		console.flash_viewfinder()
 	_post_observe()
 
 
@@ -538,21 +613,24 @@ func _on_survey() -> void:
 	_post_observe()
 
 
-func _observe_one(oid: String) -> void:
+func _observe_one(oid: String) -> bool:
 	var obj: Dictionary = _find_object(oid)
 	if obj.is_empty():
-		return
+		return false
 	var calc: Dictionary = DiscoveryEngineS.calculate_confidence(
 		obj, state, tech_tree, requirements_map, entity_modifiers,
 	)
 	var conf: float = float(calc.get("confidence", 0.0))
-	if conf < 0.01:
-		return
 	var prev: Dictionary = state["discoveries"].get(oid, {}) as Dictionary
+	var prev_conf: float = float(prev.get("confidence", 0.0))
 	var is_new: bool = prev.is_empty()
-	var is_upgrade: bool = not is_new and conf > float(prev.get("confidence", 0)) + 0.05
+	var is_upgrade: bool = not is_new and conf > prev_conf + 0.05
+	if conf < 0.01:
+		_log(DiscoveryEngineS.observe_outcome_message(prev_conf, conf, is_new, is_upgrade), "#ffaa88")
+		return false
 	if not is_new and not is_upgrade:
-		return
+		_log(DiscoveryEngineS.observe_outcome_message(prev_conf, conf, is_new, is_upgrade), "#aaaaaa")
+		return false
 	var pts: int = DiscoveryEngineS.award_points(
 		obj, conf, is_new, requirements_map, state, entity_modifiers,
 	)
@@ -571,6 +649,10 @@ func _observe_one(oid: String) -> void:
 	var name: String = str(obj.get("name", oid))
 	var tag: String = "[NEW]" if is_new else "[UPGRADED]"
 	_log("%s %s (%s) — %s %d%%, +%d RP" % [tag, name, obj.get("type", ""), label, int(round(conf * 100)), pts], "#aaffaa")
+	_log(
+		DiscoveryEngineS.observe_outcome_message(prev_conf, conf, is_new, is_upgrade),
+		"#88ddaa",
+	)
 
 	var sresult: Dictionary = SurveyEngineS.update_progress(
 		state,
@@ -590,6 +672,7 @@ func _observe_one(oid: String) -> void:
 				_log("Survey '%s' complete — +%d RP" % [ev["survey"]["name"], ev["reward"]], "#88ff99")
 			"progress":
 				_log("  ↳ %s: %d/%d" % [ev["survey"]["name"], ev["done"], ev["goal"]], "#7799cc")
+	return true
 
 
 func _post_observe() -> void:

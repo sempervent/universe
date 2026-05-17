@@ -48,9 +48,9 @@ static func angular_size_on_dome(obj: Dictionary, scene: Dictionary) -> float:
 	if SceneLoader.is_solar_system_scene(scene):
 		match otype:
 			"star":
-				return 12.0
+				return 9.0
 			"moon":
-				return 8.0
+				return 7.0
 			"planet":
 				return 2.2
 			"satellite":
