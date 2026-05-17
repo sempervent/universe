@@ -83,6 +83,12 @@
 - Save State writes back to the same JSON, with `user://` fallback.
 - New CLI command `game export-godot-data` produces the engine data bundle.
 
+## Phase 4a.1: Single-command demo launcher ✅
+
+- `uv run universe demo godot` — generate all six campaign scenes, game state, Godot data bundle; optional `--launch`.
+- `uv run universe demo html` — static one-scene browser UI; `demo check` validates artifacts.
+- `just godot-demo` / `just demo-check` shortcuts.
+
 ## Phase 4c: Godot campaign scene picker ✅
 
 - **Campaign / Observing Program** tab: full `scene_catalog.json` list, lock/file status, load / set active, CLI generate hints.

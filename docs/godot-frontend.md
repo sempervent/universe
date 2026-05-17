@@ -36,6 +36,29 @@ frontends/godot/
 
 Open `project.godot` with Godot 4.x.  Press F5 to run the main scene.
 
+### One-command prep
+
+From the repo root:
+
+```bash
+uv run universe demo godot --reset
+uv run universe demo check
+```
+
+With Godot on PATH or `GODOT_BIN` set:
+
+```bash
+uv run universe demo godot --reset --launch
+```
+
+If the wrong scene loads, clear stale `user://overrides.json`:
+
+```bash
+uv run universe demo godot --clear-overrides
+```
+
+Or in the editor: **Project → Open User Data Folder** → delete `overrides.json`.
+
 ## Data flow
 
 ```

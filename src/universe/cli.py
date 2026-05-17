@@ -1004,45 +1004,12 @@ def game_export_godot_data(out: str) -> None:
     These files are consumed by the Godot frontend (see frontends/godot/).
     Regenerate after any change to the Python game definitions.
     """
-    from universe.game.discovery import get_discovery_requirements
-    from universe.game.entity import ENTITY_TYPE_LABELS, RANDOM_ENTITY_NAMES, get_all_entity_modifiers
-    from universe.game.milestones import get_default_milestones
-    from universe.game.models import SignalType
-    from universe.game.scenes import catalog_for_export
-    from universe.game.surveys import get_default_survey_programs
-    from universe.game.tech_tree import get_default_tech_tree
-    from universe.game.objectives import objectives_for_export
-    from universe.game.transients import transients_for_export
+    from universe.game.godot_export import export_godot_data_bundle
 
     out_dir = Path(out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    bundle = {
-        "tech_tree.json": [t.model_dump(mode="json") for t in get_default_tech_tree()],
-        "surveys.json": [s.model_dump(mode="json") for s in get_default_survey_programs()],
-        "milestones.json": [m.model_dump(mode="json") for m in get_default_milestones()],
-        "discovery_requirements.json": [
-            r.model_dump(mode="json") for r in get_discovery_requirements()
-        ],
-        "signal_types.json": [s.value for s in SignalType],
-        "entity_types.json": ENTITY_TYPE_LABELS,
-        "random_entity_names.json": RANDOM_ENTITY_NAMES,
-        "entity_modifiers.json": [m.model_dump(mode="json") for m in get_all_entity_modifiers()],
-        "scene_catalog.json": catalog_for_export(),
-        "transient_events.json": transients_for_export(),
-        "objectives.json": objectives_for_export(),
-    }
-    manifest = {"files": list(bundle.keys()), "schema_version": "0.5.0"}
-    bundle["manifest.json"] = manifest
-
-    written: list[Path] = []
-    for filename, payload in bundle.items():
-        path = out_dir / filename
-        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        written.append(path)
-
+    written = export_godot_data_bundle(out_dir)
     click.echo(f"Godot data bundle written to {out_dir}")
-    for p in written:
+    for p in sorted(written.values(), key=lambda x: x.name):
         click.echo(f"  {p.name} ({p.stat().st_size} bytes)")
 
 
@@ -1378,3 +1345,124 @@ def _confidence_label_md(c: float) -> str:
     if c < 0.95:
         return "confirmed"
     return "characterized"
+
+
+# ── Demo commands ──────────────────────────────────────────────────────
+
+
+@main.group()
+def demo() -> None:
+    """Prepare and launch playable demos (Godot, HTML, Unreal)."""
+
+
+def _demo_entity_options(f):
+    """Shared entity options for demo prepare commands."""
+    f = click.option(
+        "--entity-name",
+        default="Hydrogen Ghost Institute",
+        help="Research entity name for new game state.",
+    )(f)
+    f = click.option(
+        "--entity-type",
+        "entity_type",
+        default="private_institute",
+        help="Research entity type.",
+    )(f)
+    f = click.option(
+        "--motto",
+        default="Listening for the old light.",
+        help="Research entity motto.",
+    )(f)
+    f = click.option(
+        "--reset",
+        is_flag=True,
+        help="Overwrite game-state.json (default: create only if missing).",
+    )(f)
+    return f
+
+
+@demo.command("godot")
+@_demo_entity_options
+@click.option(
+    "--clear-overrides",
+    is_flag=True,
+    help="Rename Godot user://overrides.json if found in app_userdata.",
+)
+@click.option("--launch", is_flag=True, help="Launch Godot (requires binary).")
+@click.option("--run", is_flag=True, help="Run main scene (default: open editor).")
+def demo_godot(
+    entity_name: str,
+    entity_type: str,
+    motto: str,
+    reset: bool,
+    clear_overrides: bool,
+    launch: bool,
+    run: bool,
+) -> None:
+    """Generate scenes, state, Godot data bundle; optionally launch Godot."""
+    from universe.demo import format_godot_prep_message, prepare_godot_demo
+
+    result = prepare_godot_demo(
+        entity_name=entity_name,
+        entity_type=entity_type,
+        motto=motto,
+        reset=reset,
+        clear_overrides=clear_overrides,
+        launch=launch,
+        editor=not run,
+        run_game=run,
+    )
+    click.echo(format_godot_prep_message(result))
+    if not result.success:
+        sys.exit(1)
+
+
+@demo.command("html")
+@_demo_entity_options
+@click.option("--scene", "scene_id", default="solar-system", help="Campaign scene id to export.")
+@click.option("--open", "open_browser", is_flag=True, help="Open HTML in default browser.")
+def demo_html(
+    entity_name: str,
+    entity_type: str,
+    motto: str,
+    reset: bool,
+    scene_id: str,
+    open_browser: bool,
+) -> None:
+    """Prepare static browser-playable telescope UI for one scene."""
+    from universe.demo import format_html_prep_message, prepare_html_demo
+
+    result = prepare_html_demo(
+        scene_id=scene_id,
+        entity_name=entity_name,
+        entity_type=entity_type,
+        motto=motto,
+        reset=reset,
+        open_browser=open_browser,
+    )
+    click.echo(format_html_prep_message(result))
+    if not result.success:
+        sys.exit(1)
+
+
+@demo.command("unreal")
+@click.option("--launch", is_flag=True, help="Print Unreal launch hint (no auto-compile).")
+def demo_unreal(launch: bool) -> None:
+    """Generate Scene 001 and export Unreal data bundle."""
+    from universe.demo import format_unreal_prep_message, prepare_unreal_demo
+
+    result = prepare_unreal_demo(launch=launch)
+    click.echo(format_unreal_prep_message(result))
+    if not result.success:
+        sys.exit(1)
+
+
+@demo.command("check")
+def demo_check() -> None:
+    """Verify generated scenes, game state, and Godot data bundle."""
+    from universe.demo import format_check_message, run_demo_check
+
+    check = run_demo_check()
+    click.echo(format_check_message(check))
+    if not check.ok:
+        sys.exit(1)

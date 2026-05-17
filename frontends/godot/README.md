@@ -51,27 +51,22 @@ frontends/godot/
 
 ## Quickstart
 
-1. Generate the Python-side data once:
+1. From the repo root, prepare everything:
 
     ```bash
     uv sync
-    uv run universe generate solar-system --seed local-sky --out data/generated/solar-system
-    uv run universe game init \
-      --name "Hydrogen Ghost Institute" \
-      --entity-type private_institute \
-      --motto "Listening for the old light." \
-      --out data/generated/game-state.json
-    uv run universe game start-survey \
-      --state data/generated/game-state.json \
-      --survey local_sky_survey \
-      --out data/generated/game-state.json
-    uv run universe game export-godot-data --out frontends/godot/data
+    uv run universe demo godot --reset
     ```
+
+    Optional: `uv run universe demo godot --reset --launch` if Godot is installed.
 
 2. Open `frontends/godot/project.godot` in Godot 4.x (any 4.2+).
 
 3. Press **F5** to run. The default main scene (`scenes/Main.tscn`) loads
    the solar-system scene and your game state automatically.
+
+If Godot shows the wrong scene, delete `user://overrides.json` (see
+`--clear-overrides` on `universe demo godot`) or use **Project → Open User Data Folder**.
 
 ### Campaign scene picker (Observing Program tab)
 

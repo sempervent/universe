@@ -6,32 +6,25 @@ Use this checklist for first-run UX validation. **Godot** is the preferred manua
 
 ```bash
 uv sync
-
-uv run universe game generate-scene --scene solar-system
-uv run universe game generate-scene --scene scene-001
-uv run universe game generate-scene --scene radio-cmb-survey
-uv run universe game generate-scene --scene stellar-remnant-field
-uv run universe game generate-scene --scene cosmic-web-map
-uv run universe game generate-scene --scene now-scope-anomaly-field
-
-uv run universe game init \
-  --name "Hydrogen Ghost Institute" \
-  --entity-type private_institute \
-  --motto "Listening for the old light." \
-  --out data/generated/game-state.json
-
-uv run universe game export-godot-data --out frontends/godot/data
+uv run universe demo godot --reset
+uv run universe demo check
 ```
 
 Open the Godot project (`frontends/godot/project.godot`) and press Play.
 
-Optional static HTML:
+Equivalent manual steps (if you prefer granular CLI):
 
 ```bash
-uv run universe game export-ui \
-  --scene data/generated/solar-system/scene.json \
-  --state data/generated/game-state.json \
-  --out data/generated/tutorial-ui.html
+uv run universe game generate-scene --scene solar-system
+# ... other campaign scenes ...
+uv run universe game init --name "..." --entity-type private_institute --out data/generated/game-state.json
+uv run universe game export-godot-data --out frontends/godot/data
+```
+
+Optional static HTML (one scene only):
+
+```bash
+uv run universe demo html --scene solar-system --reset --open
 ```
 
 ## Checklist

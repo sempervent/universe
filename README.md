@@ -33,6 +33,37 @@ The project produces an engine-agnostic JSON scene format, a browser-previewable
 - **Godot 4 prototype** (`frontends/godot/`) — preferred manual playtest surface; header shows active objective and next action (see `docs/godot-frontend.md`).
 - **Unreal Engine 5 prototype** (`frontends/unreal/`) — cinematic Scene 001 renderer: JSON import, signal modes, telescope camera, HUD inspector (see `docs/unreal-frontend.md`). No full game port.
 
+## Play Now
+
+One command prepares all campaign scenes, game state, and Godot data:
+
+```bash
+uv sync
+uv run universe demo godot --reset
+```
+
+Open `frontends/godot/project.godot` in Godot 4.x and press **F5**.
+
+If Godot is installed (or `GODOT_BIN` is set):
+
+```bash
+uv run universe demo godot --reset --launch
+```
+
+Verify artifacts: `uv run universe demo check`. Browser fallback: `uv run universe demo html --open`.
+
+**Troubleshooting**
+
+| Problem | Fix |
+|---------|-----|
+| Missing `scene.json` files | `uv run universe demo godot --reset` |
+| Stale or empty `game-state.json` | `uv run universe demo godot --reset` |
+| Wrong scene loads in Godot | Delete `user://overrides.json` (Project → Open User Data Folder) or `uv run universe demo godot --clear-overrides` |
+| Godot not installed | Use HTML demo: `uv run universe demo html --open` |
+| Godot data out of date | Re-run `uv run universe demo godot` (refreshes `frontends/godot/data/`) |
+
+See [manual playtest](docs/manual-playtest.md) and [Godot frontend](docs/godot-frontend.md).
+
 ## Quickstart — Scene generation
 
 ```bash
