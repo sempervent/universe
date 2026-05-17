@@ -136,6 +136,43 @@ def _echo_objective_completions(completions) -> None:
         )
 
 
+def _resolve_scene_for_state(
+    state,
+    *,
+    prefer_active_campaign: bool = True,
+) -> SceneRegion | None:
+    """Load scene.json for campaign active scene or first known path."""
+    candidates: list[Path] = []
+    if prefer_active_campaign:
+        sid = state.campaign.active_scene_id
+        candidates.append(Path(f"data/generated/{sid}/scene.json"))
+    candidates.extend(
+        [
+            Path("data/generated/solar-system/scene.json"),
+            Path("data/generated/scene-001/scene.json"),
+        ]
+    )
+    for path in candidates:
+        if path.exists():
+            scene_data = json.loads(path.read_text(encoding="utf-8"))
+            scene_data.pop("_units", None)
+            return SceneRegion.model_validate(scene_data)
+    return None
+
+
+def _echo_next_actions(state, scene: SceneRegion | None, state_path: str) -> None:
+    from universe.game.next_actions import format_next_actions_cli, get_next_actions
+
+    actions = get_next_actions(state, scene, state_path=state_path)
+    click.echo("")
+    click.echo("  Next actions:")
+    if actions:
+        for line in format_next_actions_cli(actions):
+            click.echo(line)
+    else:
+        click.echo("    (none — observe or upgrade to refresh.)")
+
+
 def _save_game_state(state, path: Path) -> None:
     from universe.game.scenes import ensure_campaign_state
 
@@ -347,7 +384,12 @@ def _print_campaign_status(state) -> None:
 @click.option("--state", "state_path", required=True, type=click.Path(exists=True))
 def game_scenes(state_path: str) -> None:
     """List campaign observation scenes and unlock status."""
-    from universe.game.scenes import generate_scene_command, get_default_scene_catalog
+    from universe.game.scenes import (
+        generate_scene_command,
+        get_default_scene_catalog,
+        scene_json_path,
+        set_active_scene_command,
+    )
     from universe.game.surveys import get_survey_by_id
 
     state = _load_game_state(state_path)
@@ -355,10 +397,27 @@ def game_scenes(state_path: str) -> None:
     for defn in sorted(get_default_scene_catalog(), key=lambda d: d.order_index):
         cs = state.campaign.scenes.get(defn.id)
         unlocked = cs.unlocked if cs else False
+        visited = cs.visited if cs else False
         active = defn.id == state.campaign.active_scene_id
+        flags = []
+        if active:
+            flags.append("ACTIVE")
+        if unlocked:
+            flags.append("unlocked")
+        else:
+            flags.append("locked")
+        if visited:
+            flags.append("visited")
         click.echo("")
-        click.echo(f"  {defn.id} — {defn.name}{'  [ACTIVE]' if active else ''}")
-        click.echo(f"    Status: {'unlocked' if unlocked else 'locked'}")
+        click.echo(f"  {defn.id} — {defn.name}  [{', '.join(flags)}]")
+        json_path = Path(scene_json_path(defn))
+        if unlocked:
+            if json_path.exists():
+                click.echo(f"    scene.json: {json_path} (ready)")
+            else:
+                click.echo("    scene.json: missing — run:")
+                click.echo(f"      {generate_scene_command(defn)}")
+            click.echo(f"    Set active: {set_active_scene_command(defn.id, state_path)}")
         if defn.unlock_tier_id:
             click.echo(f"    Unlock: tier {defn.unlock_tier_id}")
         if defn.unlock_milestone_id:
@@ -374,7 +433,8 @@ def game_scenes(state_path: str) -> None:
                 "    Signals: "
                 + ", ".join(s.value for s in defn.recommended_signal_modes[:6])
             )
-        click.echo(f"    Generate: {generate_scene_command(defn)}")
+        if not unlocked:
+            click.echo(f"    Generate (when unlocked): {generate_scene_command(defn)}")
 
 
 @game.command("set-scene")
@@ -486,6 +546,7 @@ def game_status(state_path: str) -> None:
     )
 
     state, _ = evaluate_objectives(state)
+    scene = _resolve_scene_for_state(state)
     active_objs = active_objectives(state)
     if active_objs:
         click.echo("")
@@ -495,9 +556,25 @@ def game_status(state_path: str) -> None:
         if hint:
             click.echo(f"      {hint}")
 
+    from universe.game.scenes import get_scene_definition, recommended_next_scene
+
+    active_sid = state.campaign.active_scene_id
+    active_def = get_scene_definition(active_sid)
+    click.echo("")
+    click.echo(f"  Active campaign scene: {active_def.name if active_def else active_sid} ({active_sid})")
+    rec = recommended_next_scene(state)
+    if rec and rec.id != active_sid:
+        click.echo(f"  Recommended: {rec.name} ({rec.id})")
+    if scene:
+        click.echo(f"  Loaded scene file: {scene.name} ({scene.id})")
+        if scene.id != active_sid:
+            click.echo("  ⚠ Loaded scene.json does not match active campaign scene.")
+
     click.echo("")
     click.echo("  Campaign:")
     _print_campaign_status(state)
+
+    _echo_next_actions(state, scene, state_path)
 
     if state.active_survey_id:
         active = get_survey_by_id(state.active_survey_id)
@@ -597,10 +674,18 @@ def game_objectives(state_path: str) -> None:
     state = _load_game_state(state_path)
     state, _ = evaluate_objectives(state)
     state = ensure_objective_progress(state)
+    active = active_objectives(state)
     click.echo(f"=== Tutorial Objectives (turn {state.turn}) ===")
+    if active:
+        obj = active[0]
+        click.echo("")
+        click.echo(f"ACTIVE: {obj.title}")
+        if obj.hint:
+            click.echo(f"  {obj.hint}")
+        if obj.suggested_command:
+            click.echo(f"  Command: {obj.suggested_command}")
     for line in format_objective_status_lines(state):
         click.echo(line.replace("**", "").replace("_", ""))
-    active = active_objectives(state)
     if active:
         click.echo("")
         click.echo(f"Current focus: {active[0].title}")
@@ -669,10 +754,53 @@ def game_transients(
             )
         return
 
-    for line in format_transient_status_lines(
-        scene, state, scene_id=sid, all_scenes=all_scenes
-    ):
-        click.echo(line)
+    from universe.game.transients import is_transient_observable
+
+    catalog = get_default_transient_events()
+    if sid and not all_scenes:
+        catalog = [d for d in catalog if d.scene_id == sid]
+
+    buckets: dict[str, list] = {
+        "Active": [],
+        "Upcoming": [],
+        "Expired": [],
+        "Observed": [],
+    }
+    for defn in catalog:
+        ts = state.transient_events.get(defn.id)
+        if ts is None:
+            continue
+        if ts.reward_claimed:
+            buckets["Observed"].append((defn, ts))
+        elif defn.start_turn > state.turn:
+            buckets["Upcoming"].append((defn, ts))
+        elif ts.expired:
+            buckets["Expired"].append((defn, ts))
+        elif ts.active:
+            buckets["Active"].append((defn, ts))
+
+    for label, items in buckets.items():
+        if not items:
+            continue
+        click.echo("")
+        click.echo(f"  {label}:")
+        for defn, ts in items:
+            spec = " [SPECULATIVE]" if defn.speculative else ""
+            window = f"t{defn.start_turn}–{defn.start_turn + defn.duration_turns - 1}"
+            click.echo(
+                f"    - {defn.name} ({defn.id}){spec} — {window}; "
+                f"+{defn.reward_research_points} RP; tier ≥ {defn.minimum_telescope_tier}"
+            )
+            if label == "Active" and scene and not ts.reward_claimed:
+                ok, why = is_transient_observable(scene, state, defn.id)
+                if not ok:
+                    click.echo(f"      not observable: {why}")
+
+    if not any(buckets.values()):
+        for line in format_transient_status_lines(
+            scene, state, scene_id=sid, all_scenes=all_scenes
+        ):
+            click.echo(line)
 
     if not all_scenes and sid:
         missed = [
@@ -996,10 +1124,24 @@ def game_report(scene_path: str, state_path: str, out: str) -> None:
     entity = state.research_entity
     mod = get_entity_modifier(entity.entity_type)
 
+    from universe.game.next_actions import get_next_actions
+
+    next_acts = get_next_actions(state, scene, state_path=state_path)
     lines = [
         f"# {entity.name} — Discovery Report",
         "",
     ]
+    if next_acts:
+        top = next_acts[0]
+        lines += [
+            "## Recommended Next Step",
+            "",
+            f"**{top.title}** — {top.message}",
+        ]
+        if top.command:
+            lines.append("")
+            lines.append(f"```bash\n{top.command}\n```")
+        lines.append("")
     if entity.motto:
         lines.append(f"*\"{entity.motto}\"*  ")
     lines += [

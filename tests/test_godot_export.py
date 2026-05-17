@@ -225,7 +225,7 @@ class TestGodotScaffold:
         console = (GODOT_ROOT / "scripts" / "TelescopeConsole.gd").read_text(encoding="utf-8")
         assert "render_transients" in console
         assert 'name = "Transients"' in console or 'name = &"Transients"' in console
-        assert "Observe Event" in console
+        assert "Observe:" in console or "Observe Transient" in console
         main_gd = (GODOT_ROOT / "scripts" / "Main.gd").read_text(encoding="utf-8")
         assert "TransientEngine" in main_gd
         assert "_on_observe_transient" in main_gd

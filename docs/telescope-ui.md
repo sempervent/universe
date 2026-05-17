@@ -4,6 +4,8 @@
 
 The telescope UI is a self-contained static HTML file that implements the observatory console — a browser-playable interface for the telescope discovery game. No backend server is required.
 
+**Limitation:** static HTML **cannot hot-swap** campaign scenes. The Campaign tab shows exact CLI commands; regenerate the UI with `export-ui` and another `scene.json`, or use Godot for live scene switching. The header shows the active objective, next action, and localStorage save status.
+
 ## Generating the UI
 
 ```bash

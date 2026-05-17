@@ -30,7 +30,7 @@ The project produces an engine-agnostic JSON scene format, a browser-previewable
 - Browser-playable telescope UI with naming flow, sky map, tech tree, surveys, milestones, and discovery log.
 
 **Engine frontends:**
-- **Godot 4 prototype** (`frontends/godot/`) — playable telescope game on `scene.json` / `game-state.json` (see `docs/godot-frontend.md`).
+- **Godot 4 prototype** (`frontends/godot/`) — preferred manual playtest surface; header shows active objective and next action (see `docs/godot-frontend.md`).
 - **Unreal Engine 5 prototype** (`frontends/unreal/`) — cinematic Scene 001 renderer: JSON import, signal modes, telescope camera, HUD inspector (see `docs/unreal-frontend.md`). No full game port.
 
 ## Quickstart — Scene generation
@@ -140,6 +140,8 @@ See [docs/balance-playtesting.md](docs/balance-playtesting.md). Campaign ladder 
 Transient turn-window events: [docs/transient-events.md](docs/transient-events.md).
 
 First-run tutorial objectives: [docs/tutorial-objectives.md](docs/tutorial-objectives.md).
+
+**Manual playtest (30–45 min):** [docs/manual-playtest.md](docs/manual-playtest.md) — Godot preferred; `uv run universe game status` shows **Next actions** as mission control.
 
 ## Quickstart — Telescope UI (browser game)
 

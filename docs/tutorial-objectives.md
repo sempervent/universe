@@ -27,8 +27,9 @@ uv run universe game objectives --state data/generated/game-state.json
 
 ## UI
 
-- **Static HTML:** Objectives tab + header hint; embedded `OBJECTIVES` catalog.  
-- **Godot:** Objectives tab; `ObjectiveEngine.gd` mirrors Python lightly.
+- **Static HTML:** Objectives tab (active card, `N/10` progress) + header objective/next action.  
+- **Godot:** Objectives tab + header **Next action**; `ObjectiveEngine.gd` mirrors Python lightly.
+- **Next actions:** `get_next_actions()` surfaces the active objective first — see `game status` and [manual-playtest.md](manual-playtest.md).
 
 ## Data
 

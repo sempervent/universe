@@ -95,6 +95,13 @@
 - HTML Transients tab; Godot `transient_events.json` + `TransientEngine.gd`.
 - Docs: [transient-events.md](transient-events.md).
 
+## Phase 3.10: First-run UX & manual playtest polish ✅
+
+- Canonical `get_next_actions()` (`src/universe/game/next_actions.py`) merges objectives, guidance, upgrades, transients, campaign, surveys.
+- CLI `game status` / `report` show **Next actions** / recommended next step; polished `scenes`, `objectives`, `transients`.
+- Static HTML + Godot mirrors: header next action, empty states, survey/transient grouping, campaign hot-swap note.
+- [manual-playtest.md](manual-playtest.md) — 30–45 minute checklist.
+
 ## Phase 3.9: Campaign ladder balance tuning ✅
 
 - Per-scene observation RP caps (`observation_rewards.py`) fix Scene 001 funding spikes.

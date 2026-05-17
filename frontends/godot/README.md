@@ -21,6 +21,8 @@ discover → survey → milestone loop.
 
 The Python CLI and the static HTML telescope UI remain canonical.
 
+**Manual playtest:** follow [docs/manual-playtest.md](../../docs/manual-playtest.md). Header shows active objective, next action, and save paths. Use `uv run universe game status` for **Next actions**.
+
 ## Project layout
 
 ```

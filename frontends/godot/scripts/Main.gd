@@ -301,7 +301,9 @@ func _render_all() -> void:
 		surveys_map,
 	)
 	var mod: Dictionary = EntityModifiersS.modifier_for_state(state, entity_modifiers)
-	console.render_header(state, scene_data, _last_save_path, _scene_path, mod)
+	console.render_header(
+		state, scene_data, _last_save_path, _scene_path, mod, objective_defs, _state_path
+	)
 	console.render_signal_mode_help(console.get_signal_mode(), SceneLoaderS.is_deep_field_scene(scene_data))
 	console.render_survey_hint(scene_data, state, surveys_map)
 	refresh_campaign_ui()
@@ -585,7 +587,10 @@ func _on_reload() -> void:
 	refresh_campaign_unlocks()
 	_render_all()
 	_apply_camera_framing()
-	_log("Scene + state reloaded from disk.", "#7799cc")
+	_log(
+		"Reloaded scene → %s\nReloaded state → %s" % [_scene_path, _state_path],
+		"#7799cc",
+	)
 
 
 func _find_object(oid: String) -> Dictionary:

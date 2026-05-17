@@ -63,7 +63,7 @@ Also: `universe game campaign` prints active scene, unlocks, and recommended nex
 
 ### Static HTML (`export-ui`)
 
-Embeds the scene catalog and a **Campaign** tab with lock state and generate/set-scene commands. The HTML file still renders **one** `scene.json`; switching scenes requires regenerating/exporting with the desired scene file.
+Embeds the scene catalog and a **Campaign** tab with lock state and generate/set-scene commands. The HTML file still renders **one** `scene.json` — it **cannot hot-swap** scenes; the tab explains `export-ui` / Godot. `game status` lists next actions including missing-file generate commands.
 
 ### Godot
 

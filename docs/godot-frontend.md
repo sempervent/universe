@@ -5,6 +5,11 @@ The Godot 4 frontend is the first real engine integration of the
 remains the source of truth for scene data, game definitions, and the
 game-state schema.
 
+**Manual playtest:** use Godot as the primary first-run surface. Follow
+[manual-playtest.md](manual-playtest.md). The header shows the active
+tutorial objective, a **Next action** summary, and scene/state path lines
+after save/reload.
+
 The Unreal frontend is intentionally deferred to a later phase.  Godot
 was chosen first because it is open-source, repo-friendly, and well
 suited to a console-style prototype.

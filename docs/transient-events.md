@@ -43,6 +43,7 @@ Autoplay (`campaign_ordered`) observes available transients after each `observe_
 
 ## Frontends
 
-- **HTML:** Transients tab in exported telescope UI.
-- **Godot:** `transient_events.json` in the data bundle; `TransientEngine.gd` mirrors core rules.
+- **HTML:** Transients tab grouped **Active / Upcoming / Expired** with blocked reasons.
+- **Godot:** `transient_events.json`; `TransientEngine.gd`; observe button labeled with event name.
+- **Next actions:** active observable transients appear in `game status` next actions.
 - **Unreal:** No transient gameplay (Scene 001 cinematic only).

@@ -32,6 +32,7 @@ const TEXT_BRIGHT := Color(0.85, 0.95, 1)
 var _root: Control
 var _header_label: Label
 var _meta_label: Label
+var _next_action_label: Label
 var _save_path_label: Label
 var _objects_list: ItemList
 var _detail_text: RichTextLabel
@@ -167,6 +168,8 @@ func render_header(
 	last_save_path: String,
 	scene_path: String,
 	entity_modifier: Dictionary = {},
+	objective_defs: Array = [],
+	state_file_path: String = "",
 ) -> void:
 	var entity: Dictionary = state.get("research_entity", {})
 	var name: String = entity.get("name", "Unnamed Research Entity")
@@ -202,7 +205,21 @@ func render_header(
 	var active_id: String = str(camp.get("active_scene_id", "solar-system"))
 	if active_id != "":
 		pieces.append("Campaign: %s" % active_id)
-	_save_path_label.text = "Scene: %s\nLast save: %s" % [scene_path, last_save_path if last_save_path != "" else "(none)"]
+	var next_txt := _next_action_summary(state, scene, objective_defs)
+	if _next_action_label:
+		_next_action_label.text = next_txt
+	var camp_active: String = str(camp.get("active_scene_id", "solar-system"))
+	var loaded_id: String = str(scene.get("id", ""))
+	var mismatch := camp_active != "" and loaded_id != "" and camp_active != loaded_id
+	var state_path_show := state_file_path if state_file_path != "" else "(unknown)"
+	var save_line := "Loaded scene: %s\nState file: %s\nLast save: %s" % [
+		scene_path,
+		state_path_show,
+		last_save_path if last_save_path != "" else "(none)",
+	]
+	if mismatch:
+		save_line += "\n⚠ Campaign active '%s' ≠ loaded '%s'" % [camp_active, loaded_id]
+	_save_path_label.text = save_line
 
 
 func render_campaign_hint(
@@ -328,10 +345,13 @@ func _build_header() -> void:
 	bar.add_child(vb)
 	_header_label = _label("", 17, TEXT_BRIGHT)
 	_meta_label = _label("", 11, TEXT_DIM)
+	_next_action_label = _label("", 11, Color(0.55, 0.85, 0.95))
+	_next_action_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_save_path_label = _label("", 9, Color(0.5, 0.58, 0.72))
 	_save_path_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(_header_label)
 	vb.add_child(_meta_label)
+	vb.add_child(_next_action_label)
 	vb.add_child(_save_path_label)
 	_survey_hint = RichTextLabel.new()
 	_survey_hint.bbcode_enabled = true
@@ -363,7 +383,7 @@ func _build_left_panel() -> void:
 	btn_obs.pressed.connect(func(): action_observe.emit())
 	vb.add_child(btn_obs)
 	var btn_sur := Button.new()
-	btn_sur.text = "Survey All"
+	btn_sur.text = "Survey All Observable"
 	btn_sur.pressed.connect(func(): action_survey.emit())
 	vb.add_child(btn_sur)
 	var btn_save := Button.new()
@@ -481,7 +501,7 @@ func _build_right_panel() -> void:
 	_transients_text.custom_minimum_size = Vector2(0, 280)
 	tr_outer.add_child(_transients_text)
 	_btn_observe_transient = Button.new()
-	_btn_observe_transient.text = "Observe Event"
+	_btn_observe_transient.text = "Observe Transient Event"
 	_btn_observe_transient.disabled = true
 	_btn_observe_transient.pressed.connect(_on_observe_transient_pressed)
 	tr_outer.add_child(_btn_observe_transient)
@@ -1093,12 +1113,29 @@ func render_transients(
 		if bool(chk2.get("ok", false)):
 			_selected_transient_id = eid
 			_btn_observe_transient.disabled = false
+			_btn_observe_transient.text = "Observe: %s" % str(d.get("name", eid))
 			break
 
 
 func _on_observe_transient_pressed() -> void:
 	if _selected_transient_id != "":
 		action_observe_transient.emit(_selected_transient_id)
+
+
+func _next_action_summary(state: Dictionary, scene: Dictionary, defs: Array) -> String:
+	var active_ids: Array = state.get("active_objective_ids", [])
+	for d in defs:
+		if not (d is Dictionary):
+			continue
+		var oid: String = str(d.get("id", ""))
+		if oid in active_ids:
+			return "Next action: %s" % str(d.get("title", oid))
+	var camp: Dictionary = state.get("campaign", {})
+	var active_id: String = str(camp.get("active_scene_id", ""))
+	var loaded_id: String = str(scene.get("id", ""))
+	if active_id != "" and loaded_id != "" and active_id != loaded_id:
+		return "Scene mismatch — campaign %s, loaded %s" % [active_id, loaded_id]
+	return ""
 
 
 func render_objectives(state: Dictionary, defs: Array) -> void:
@@ -1114,6 +1151,9 @@ func render_objectives(state: Dictionary, defs: Array) -> void:
 			continue
 		lines.append("[color=#ffcc66]→ %s[/color]" % d.get("title", oid))
 		lines.append("   [color=#7788aa]%s[/color]" % d.get("hint", d.get("description", "")))
+		var cmd: String = str(d.get("suggested_command", ""))
+		if cmd != "":
+			lines.append("   [color=#6688aa]%s[/color]" % cmd)
 		break
 	var done := 0
 	for d in defs:

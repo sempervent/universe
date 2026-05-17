@@ -222,14 +222,17 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
     <span class="hstat" id="h-signals"></span>
     <span class="hstat" id="h-discoveries"></span>
     <span class="hstat" id="h-background" style="max-width:280px;white-space:normal;line-height:1.3"></span>
-    <span class="hstat" id="h-objective" style="max-width:320px;white-space:normal;line-height:1.3;color:var(--gold)"></span>
+    <span class="hstat" id="h-objective" style="max-width:280px;white-space:normal;line-height:1.3;color:var(--gold)"></span>
+    <span class="hstat" id="h-next-action" style="max-width:320px;white-space:normal;line-height:1.3;color:var(--cyan)"></span>
+    <span class="hstat" id="h-save" style="font-size:10px;color:var(--dim)"></span>
     <button id="btn-export" title="Export game state as JSON">Export</button>
     <button id="btn-reset" title="Reset all progress">Reset</button>
   </div>
   <div id="left">
     <div class="panel-title">Observation Controls</div>
     <button class="btn btn-observe" id="btn-observe">Observe Selected</button>
-    <button class="btn btn-survey" id="btn-survey">Survey All</button>
+    <button class="btn btn-survey" id="btn-survey-rec" style="display:none;margin-bottom:6px">Start Recommended Survey</button>
+    <button class="btn btn-survey" id="btn-survey">Survey All Observable</button>
     <div class="panel-title">Objects</div>
     <div id="obj-list"></div>
   </div>
@@ -592,6 +595,35 @@ function logObjectives(completed) {
   (completed || []).forEach(o => addLog('Objective: ' + o.title + ' — +' + (o.reward_research_points||0) + ' RP', 'log-unlock'));
 }
 
+function getNextActionsJS(maxItems) {
+  ensureObjectiveFields();
+  const actions = [];
+  const activeObj = (state.active_objective_ids || []).map(id => OBJECTIVES.find(o => o.id === id)).filter(Boolean);
+  if (activeObj.length) {
+    const o = activeObj[0];
+    actions.push({ priority: 10, title: o.title, message: o.hint || o.description });
+  }
+  const activeId = (state.campaign || {}).active_scene_id || 'solar-system';
+  if (SCENE.id !== activeId) {
+    actions.push({ priority: 15, title: 'Scene mismatch', message: 'Campaign active scene is ' + activeId + ' but this UI shows ' + SCENE.id + '.' });
+  }
+  if (state.consecutive_no_rp_turns >= 3) {
+    actions.push({ priority: 70, title: 'Low RP streak', message: 'Try upgrade, survey, or campaign scene switch.' });
+  }
+  actions.sort((a, b) => a.priority - b.priority);
+  return actions.slice(0, maxItems || 3);
+}
+
+function recommendedSurveyForScene() {
+  const camp = state.campaign || {};
+  const activeId = camp.active_scene_id || SCENE.id;
+  const bundle = Array.isArray(SCENE_CATALOG) ? { scenes: SCENE_CATALOG } : SCENE_CATALOG;
+  const def = (bundle.scenes || []).find(s => s.id === activeId);
+  if (!def || !def.recommended_survey_ids || !def.recommended_survey_ids.length) return null;
+  const sid = def.recommended_survey_ids[0];
+  return SURVEYS.find(s => s.id === sid) || null;
+}
+
 function scopeMatches(survey) {
   if (survey.scene_scope === 'any') return true;
   if (survey.scene_scope === 'solar_system') return SCENE.id === 'solar-system';
@@ -608,6 +640,31 @@ function surveyStatus(survey) {
   if (!survey.required_tier_ids.every(t => tiers.has(t))) return 'locked';
   if (!survey.required_signal_types.every(s => sigs.has(s))) return 'locked';
   return 'available';
+}
+
+function surveyLockReason(survey) {
+  const status = surveyStatus(survey);
+  if (status !== 'locked') return '';
+  const tiers = new Set(state.unlocked_tiers);
+  const sigs = new Set(state.known_signal_types);
+  const missingT = (survey.required_tier_ids || []).filter(t => !tiers.has(t));
+  if (missingT.length) return 'Unlock telescope tier: ' + missingT.join(', ');
+  const missingS = (survey.required_signal_types || []).filter(s => !sigs.has(s));
+  if (missingS.length) return 'Unlock signal mode: ' + missingS.join(', ');
+  return 'Requirements not met';
+}
+
+function updateSurveyButtons() {
+  const recBtn = document.getElementById('btn-survey-rec');
+  const rec = recommendedSurveyForScene();
+  if (!recBtn) return;
+  if (rec && surveyStatus(rec) === 'available' && state.active_survey_id !== rec.id) {
+    recBtn.style.display = 'block';
+    recBtn.textContent = 'Start Recommended Survey';
+    recBtn.onclick = () => doStartSurvey(rec.id);
+  } else {
+    recBtn.style.display = 'none';
+  }
 }
 
 function matchesSurvey(survey, objType, detectedSignals, conf) {
@@ -793,6 +850,18 @@ function renderHeader() {
     if (active.length) ho.innerHTML = 'Objective: <b>' + esc(active[0].title) + '</b>';
     else ho.innerHTML = '';
   }
+  const hn = document.getElementById('h-next-action');
+  if (hn) {
+    const acts = getNextActionsJS(1);
+    hn.innerHTML = acts.length ? 'Next: <b>' + esc(acts[0].title) + '</b>' : '';
+  }
+  const hs = document.getElementById('h-save');
+  if (hs) {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      hs.textContent = raw ? 'Progress saved locally' : 'Progress not saved yet';
+    } catch (e) { hs.textContent = ''; }
+  }
 }
 
 function displayName(obj) {
@@ -834,6 +903,9 @@ function renderObjectList() {
     row.onclick = () => { selectedObjId = obj.id; renderObjectList(); renderDetail(); renderSkyMap(); };
     el.appendChild(row);
   });
+  if (items.length === 0) {
+    el.innerHTML = '<div style="padding:12px;color:var(--dim);font-size:11px;line-height:1.5">No objects visible with the current telescope and signal mode. Unlock a higher tier or switch signal mode in the Tech tab.</div>';
+  }
 }
 
 function renderDetail() {
@@ -1330,6 +1402,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // ── Surveys / milestones renderers ────────────────────────────────────
 function renderSurveys() {
   const el = document.getElementById('tab-surveys');
+  const rec = recommendedSurveyForScene();
   let h = '<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Survey Programs</div>';
   SURVEYS.forEach(s => {
     const status = surveyStatus(s);
@@ -1346,6 +1419,7 @@ function renderSurveys() {
     if (s.speculative) h += '<span class="spec-badge">SPECULATIVE</span>';
     if (status === 'active') h += '<span style="font-size:9px;color:var(--accent);margin-left:6px">▶ ACTIVE</span>';
     if (status === 'completed') h += '<span style="font-size:9px;color:var(--green);margin-left:6px">✓ COMPLETED</span>';
+    if (rec && rec.id === s.id) h += '<span style="font-size:9px;color:var(--cyan);margin-left:6px">★ RECOMMENDED</span>';
     const rew = effectiveSurveyReward(s);
     const rewLabel = rew === s.reward_research_points ? `+${rew} RP` : `+${rew} RP (base ${s.reward_research_points})`;
     h += `<div class="tier-meta">Goal: ${done}/${s.completion_goal} · Reward: ${rewLabel}</div>`;
@@ -1357,8 +1431,12 @@ function renderSurveys() {
       h += `<div style="font-size:9px;color:var(--dim)">requires signals: ${esc(s.required_signal_types.join(', '))}</div>`;
     }
     if (s.flavor) h += `<div style="font-size:10px;font-style:italic;color:var(--dim);margin-top:4px">"${esc(s.flavor)}"</div>`;
+    if (status === 'locked') {
+      h += `<div style="font-size:9px;color:var(--amber);margin-top:4px">${esc(surveyLockReason(s))}</div>`;
+    }
     if (status === 'available') {
-      h += `<button class="btn" onclick="doStartSurvey('${esc(s.id)}')">Start Survey</button>`;
+      const btnLabel = (rec && rec.id === s.id) ? 'Start Recommended Survey' : 'Start Survey';
+      h += `<button class="btn" onclick="doStartSurvey('${esc(s.id)}')">${btnLabel}</button>`;
     }
     if (status === 'completed' && prog && !prog.claimed_reward) {
       const cr = effectiveSurveyReward(s);
@@ -1416,7 +1494,7 @@ function renderCampaign() {
   const activeDef = scenes.find(s => s.id === activeId);
   h += `<div class="tier-card unlocked"><span class="tier-name">${esc(activeDef ? activeDef.name : activeId)}</span>`;
   h += `<div style="font-size:10px;color:var(--dim);margin-top:3px">${esc(activeId)} — viewing ${esc(SCENE.name)}</div>`;
-  h += `<div style="font-size:10px;color:var(--muted);margin-top:4px">Switch scenes via CLI; re-export this HTML for another scene file.</div></div>`;
+  h += `<div style="font-size:10px;color:var(--muted);margin-top:4px">Static HTML cannot hot-swap scenes. Regenerate UI with export-ui and another scene.json, or use Godot for live switching.</div></div>`;
   if (rec && rec !== activeId) {
     const rd = scenes.find(s => s.id === rec);
     h += `<div style="margin-top:10px;font-size:11px;color:var(--amber)">Recommended: ${esc(rd ? rd.name : rec)}</div>`;
@@ -1472,18 +1550,24 @@ function refreshTransientFlags() {
   });
 }
 
-function canObserveTransient(defn) {
+function transientBlockedReason(defn) {
   refreshTransientFlags();
-  if (SCENE.id !== defn.scene_id) return false;
   const ts = transientState(defn.id);
-  if (ts.expired || !ts.active || ts.reward_claimed) return false;
+  if (SCENE.id !== defn.scene_id) return 'wrong scene (needs ' + defn.scene_id + ')';
+  if (ts.expired) return ts.reward_claimed ? 'expired (observed)' : 'expired';
+  if (!ts.active) return 'upcoming';
+  if (ts.reward_claimed) return 'already observed';
   const minTier = defn.minimum_telescope_tier || 'naked_eye';
   const minIdx = (TECH_TREE.find(t => t.id === minTier) || { tier_index: -1 }).tier_index;
   const activeIdx = (TECH_TREE.find(t => t.id === state.active_telescope_tier) || { tier_index: -1 }).tier_index;
-  if (!(state.unlocked_tiers || []).includes(minTier) && activeIdx < minIdx) return false;
+  if (!(state.unlocked_tiers || []).includes(minTier) && activeIdx < minIdx) return 'requires telescope tier: ' + minTier;
   const req = defn.required_signal_types || [];
-  if (req.length && !req.some(s => (state.known_signal_types || []).includes(s))) return false;
-  return true;
+  if (req.length && !req.some(s => (state.known_signal_types || []).includes(s))) return 'requires signal: ' + req.join(', ');
+  return '';
+}
+
+function canObserveTransient(defn) {
+  return transientBlockedReason(defn) === '';
 }
 
 function observeTransient(defn) {
@@ -1516,6 +1600,7 @@ function renderObjectives() {
     h += '</div>';
   }
   const done = OBJECTIVES.filter(o => state.objectives[o.id] && state.objectives[o.id].status === 'completed');
+  h += '<div style="font-size:10px;color:var(--dim);margin-top:8px">' + done.length + ' / ' + OBJECTIVES.length + ' complete</div>';
   if (done.length) {
     h += '<div style="font-size:10px;color:var(--dim);margin-top:10px">Completed</div>';
     done.forEach(o => { h += '<div style="font-size:11px;color:var(--green);margin-top:4px">✓ ' + esc(o.title) + ' (+' + o.reward_research_points + ' RP)</div>'; });
@@ -1527,31 +1612,45 @@ function renderTransients() {
   const el = document.getElementById('tab-transients');
   if (!el) return;
   refreshTransientFlags();
-  let h = '<div class="panel-title">Transient Events</div>';
+  let h = '<motion.div class="panel-title">Transient Events</div>';
+  h += '<div style="font-size:9px;color:var(--dim);margin-bottom:8px">Grouped: active / upcoming / expired</div>';
   const sceneEvents = TRANSIENTS.filter(d => d.scene_id === SCENE.id);
   if (!sceneEvents.length) {
     el.innerHTML = h + '<p class="dim">No catalog events for this scene.</p>';
     return;
   }
+  const buckets = { Active: [], Upcoming: [], Expired: [] };
   sceneEvents.forEach(defn => {
     const ts = transientState(defn.id);
-    let status = 'upcoming';
-    if (ts.expired) status = ts.reward_claimed ? 'expired (observed)' : 'expired';
-    else if (ts.active) status = ts.reward_claimed ? 'active (done)' : 'active';
-    const spec = defn.speculative ? ' <span class="spec">SPECULATIVE</span>' : '';
-    h += `<div class="card"><strong>${defn.name}</strong>${spec}<br>`;
-    h += `<span class="dim">${status} · turns ${defn.start_turn}–${defn.start_turn + defn.duration_turns - 1} · +${defn.reward_research_points} RP</span><br>`;
-    h += `<span class="dim">${defn.description}</span>`;
-    if (canObserveTransient(defn)) {
-      h += `<br><button class="btn-small" onclick="observeTransient(TRANSIENTS.find(x=>x.id==='${defn.id}'))">Observe Event</button>`;
-    }
-    h += '</div>';
+    if (ts.expired) buckets.Expired.push(defn);
+    else if (ts.active) buckets.Active.push(defn);
+    else buckets.Upcoming.push(defn);
+  });
+  ['Active', 'Upcoming', 'Expired'].forEach(label => {
+    const items = buckets[label];
+    if (!items.length) return;
+    h += '<div style="font-size:10px;color:var(--accent);margin:10px 0 4px;text-transform:uppercase">' + label + '</div>';
+    items.forEach(defn => {
+      const reason = transientBlockedReason(defn);
+      const spec = defn.speculative ? ' <span class="spec">SPECULATIVE</span>' : '';
+      h += '<div class="card"><strong>' + esc(defn.name) + '</strong>' + spec + '<br>';
+      h += '<span class="dim">turns ' + defn.start_turn + '–' + (defn.start_turn + defn.duration_turns - 1) + ' · +' + defn.reward_research_points + ' RP</span><br>';
+      h += '<span class="dim">' + esc(defn.description) + '</span>';
+      if (reason && label === 'Active') {
+        h += '<br><span style="font-size:10px;color:var(--amber)">Not observable: ' + esc(reason) + '</span>';
+      }
+      if (canObserveTransient(defn)) {
+        h += '<br><button class="btn-small" onclick="observeTransient(TRANSIENTS.find(x=>x.id===\'' + defn.id + '\'))">Observe: ' + esc(defn.name) + '</button>';
+      }
+      h += '</div>';
+    });
   });
   el.innerHTML = h;
 }
 
 function renderAll() {
   renderHeader();
+  updateSurveyButtons();
   renderObjectList();
   renderDetail();
   renderTechTree();
