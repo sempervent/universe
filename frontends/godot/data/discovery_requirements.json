@@ -242,5 +242,18 @@
     "base_research_points": 20,
     "notes": "Requires microwave/radio receiver capability.",
     "speculative": false
+  },
+  {
+    "object_type": "speculative_anomaly",
+    "required_signal_types": [
+      "speculative_now_signal"
+    ],
+    "optional_signal_types": [],
+    "minimum_telescope_tier": 11,
+    "minimum_sensitivity": 0.9,
+    "minimum_resolution_arcsec": 0.01,
+    "base_research_points": 50,
+    "notes": "Fictional now-scope target \u2014 causality-independent placeholder. Not a real astrophysical object.",
+    "speculative": true
   }
 ]

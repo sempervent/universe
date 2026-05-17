@@ -10,6 +10,12 @@ Python source: `src/universe/game/scenes.py`
 |----------|------|-------|--------|
 | `solar-system` | Local Solar System | tutorial / solar | always |
 | `scene-001` | The Lyman-alpha Furnace | deep field | `space_optical` tier (or `first_deep_field_ready` milestone) |
+| `radio-cmb-survey` | Radio CMB Survey | radio survey | `radio` |
+| `stellar-remnant-field` | Stellar Remnant Field | high energy | `xray_gamma` |
+| `cosmic-web-map` | Cosmic Web Map | deep field / structure | `dark_matter_mapper` |
+| `now-scope-anomaly-field` | Now-Scope Anomaly Field | speculative | `now_scope` |
+
+Full scene reference: [campaign-scenes.md](campaign-scenes.md).
 
 Each entry includes default generator seed, output path, recommended surveys, and signal modes.
 
@@ -61,7 +67,7 @@ Embeds the scene catalog and a **Campaign** tab with lock state and generate/set
 
 ### Godot
 
-`export-godot-data` writes `scene_catalog.json`. The console shows active campaign scene and hints when the loaded `scene.json` does not match. Use `user://overrides.json` to point at another generated scene path. Godot does not run Python generators.
+`export-godot-data` writes `scene_catalog.json`. The **Campaign / Observing Program** tab lists all scenes with lock status, file presence, recommended surveys/signals, and actions to **Load Scene** / **Set Active**. Godot mirrors campaign unlock rules in `GameState.gd` but does not run Python — missing files show `uv run universe game generate-scene --scene <id>`. See [godot-frontend.md](godot-frontend.md).
 
 ### Unreal
 
@@ -69,4 +75,9 @@ Unreal remains a **cinematic renderer** for specific exported scenes (currently 
 
 ## Playtesting
 
-Scenario `solar_to_deep_field_campaign` auto-switches to `scene-001` when unlocked. Balance reports include campaign transition timing (section 7e).
+| Scenario | Strategy | Use |
+|----------|----------|-----|
+| `solar_to_deep_field_campaign` | `campaign_greedy` | Solar → deep field transition only |
+| `campaign_instrument_ladder` | `campaign_ordered` | Full six-scene ladder pacing |
+
+Balance reports include campaign transition timing (§7e) and **Campaign Ladder Analysis** (§7f) when ladder runs are in the matrix input. See [balance-playtesting.md](balance-playtesting.md).

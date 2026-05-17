@@ -19,7 +19,20 @@ from universe.game.entity import (
 from universe.game.models import DiscoveryResult, ResearchState
 from universe.game.guidance import get_guidance_hints
 from universe.game.milestones import get_default_milestones
+from universe.game.campaign_balance import (
+    SceneMetricsTracker,
+    alignment_summary_markdown,
+    collect_ladder_warnings,
+    generate_campaign_ladder_analysis,
+    pick_next_scene_in_order,
+    preferred_survey_id,
+    run_campaign_alignment_checks,
+    scene_max_turns,
+    scene_ready_to_advance,
+    should_switch_to_recommended_survey,
+)
 from universe.game.scenes import (
+    campaign_advance_active_scene,
     ensure_campaign_state,
     set_active_scene,
     update_scene_unlocks,
@@ -38,14 +51,13 @@ from universe.game.tech_tree import (
 )
 from universe.game.telemetry import PlaytestEvent, PlaytestRun
 from universe.models import SceneRegion
-from universe.procedural.region import generate_scene_001
-from universe.procedural.solar_system import generate_solar_system
+from universe.procedural.registry import CAMPAIGN_SCENE_IDS
 
 # ---------------------------------------------------------------------------
 # Scenario model
 # ---------------------------------------------------------------------------
 
-KNOWN_SCENE_IDS = frozenset({"solar-system", "scene-001"})
+KNOWN_SCENE_IDS = CAMPAIGN_SCENE_IDS
 
 DEFAULT_MATRIX_ENTITY_TYPES: list[str] = [
     m.entity_type
@@ -62,6 +74,7 @@ class PlaytestScenario(BaseModel):
     entity_types: list[str] = Field(default_factory=list)
     strategy: str = "greedy_research"
     use_campaign_progression: bool = False
+    campaign_advance_max_order: int | None = None
     max_turns: int = 60
     target_tier_id: str | None = None
     stop_when_target_reached: bool = False
@@ -94,7 +107,36 @@ def get_default_scenarios() -> list[PlaytestScenario]:
             use_campaign_progression=True,
             max_turns=80,
             target_tier_id="space_optical",
+            campaign_advance_max_order=1,
             scene_seeds={"solar-system": "local-sky", "scene-001": "lyman-alpha-furnace"},
+        ),
+        PlaytestScenario(
+            id="campaign_instrument_ladder",
+            name="Campaign Instrument Ladder",
+            description=(
+                "Progress through campaign scenes as instrument tiers unlock: "
+                "solar → deep field → radio → high-energy → cosmic web → now-scope."
+            ),
+            scene_sequence=[
+                "solar-system",
+                "scene-001",
+                "radio-cmb-survey",
+                "stellar-remnant-field",
+                "cosmic-web-map",
+                "now-scope-anomaly-field",
+            ],
+            strategy="campaign_ordered",
+            use_campaign_progression=True,
+            max_turns=250,
+            stop_when_target_reached=False,
+            scene_seeds={
+                "solar-system": "local-sky",
+                "scene-001": "lyman-alpha-furnace",
+                "radio-cmb-survey": "radio-first-light",
+                "stellar-remnant-field": "high-energy-remnants",
+                "cosmic-web-map": "invisible-architecture",
+                "now-scope-anomaly-field": "impossible-now",
+            },
         ),
         PlaytestScenario(
             id="solar_to_space_optical",
@@ -237,11 +279,14 @@ def deep_field_scenario_ids() -> frozenset[str]:
 
 
 def load_scene(scene_id: str, seed: str) -> SceneRegion:
-    if scene_id == "solar-system":
-        return generate_solar_system(seed=seed)
-    if scene_id == "scene-001":
-        return generate_scene_001(seed=seed)
-    raise ValueError(f"Unknown scene id: {scene_id}. Known: {sorted(KNOWN_SCENE_IDS)}")
+    from universe.procedural.registry import generate_scene_by_id
+
+    try:
+        return generate_scene_by_id(scene_id, seed=seed)
+    except ValueError as exc:
+        raise ValueError(
+            f"Unknown scene id: {scene_id}. Known: {sorted(KNOWN_SCENE_IDS)}"
+        ) from exc
 
 
 def scene_seed_for(scenario: PlaytestScenario, scene_id: str, run_seed: str) -> str:
@@ -417,10 +462,10 @@ def _greedy_turn(
 
     # Start survey if none active.
     if not state.active_survey_id:
-        candidates = available_surveys(state, scene_id=scene_id)
-        if candidates:
+        preferred = kwargs.get("preferred_survey_id")
+        if preferred:
             before = state
-            state, msg = start_survey(state, candidates[0].id)
+            state, msg = start_survey(state, preferred)
             _record_event(
                 events,
                 state_before=before,
@@ -429,8 +474,23 @@ def _greedy_turn(
                 event_type="survey_started",
                 entity_type=entity_type,
                 message=msg,
-                survey_id=candidates[0].id,
+                survey_id=preferred,
             )
+        else:
+            candidates = available_surveys(state, scene_id=scene_id)
+            if candidates:
+                before = state
+                state, msg = start_survey(state, candidates[0].id)
+                _record_event(
+                    events,
+                    state_before=before,
+                    state_after=state,
+                    turn=turn,
+                    event_type="survey_started",
+                    entity_type=entity_type,
+                    message=msg,
+                    survey_id=candidates[0].id,
+                )
 
     before_observe = state
     state, results = observe_scene(scene, state)
@@ -480,6 +540,33 @@ def _greedy_turn(
                 entity_type=entity_type,
                 message=r.message,
                 milestone_id=mid,
+            )
+            continue
+
+        if r.object_id == "__reward_cap__":
+            uncapped = capped = cap_val = None
+            m = re.search(
+                r"(\d+) awarded of (\d+) uncapped \(cap (\d+)\)", r.message
+            )
+            if m:
+                capped, uncapped, cap_val = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            _record_event(
+                events,
+                state_before=before_observe,
+                state_after=state,
+                turn=state.turn,
+                event_type="reward_cap_applied",
+                entity_type=entity_type,
+                message=r.message,
+                object_id=r.object_id,
+                object_type=r.object_type,
+                metadata={
+                    "reward_cap_applied": True,
+                    "uncapped_rp": uncapped,
+                    "capped_rp": capped,
+                    "cap_value": cap_val,
+                    "scene_id": scene_id,
+                },
             )
             continue
 
@@ -598,25 +685,24 @@ def _campaign_greedy_turn(
             metadata={"scene_id": sid},
         )
 
-    deep = state.campaign.scenes.get("scene-001")
-    if (
-        scenario.use_campaign_progression
-        and deep
-        and deep.unlocked
-        and state.campaign.active_scene_id == "solar-system"
-    ):
+    if scenario.use_campaign_progression:
         before_switch = state
-        state, msg = set_active_scene(state, "scene-001")
-        _record_event(
-            events,
-            state_before=before_switch,
-            state_after=state,
-            turn=state.turn,
-            event_type="active_scene_changed",
-            entity_type=entity_type,
-            message=msg,
-            metadata={"scene_id": "scene-001"},
+        state, msg, new_sid = campaign_advance_active_scene(
+            state,
+            newly_unlocked=newly_unlocked,
+            max_order_index=scenario.campaign_advance_max_order,
         )
+        if new_sid and msg:
+            _record_event(
+                events,
+                state_before=before_switch,
+                state_after=state,
+                turn=state.turn,
+                event_type="active_scene_changed",
+                entity_type=entity_type,
+                message=msg,
+                metadata={"scene_id": new_sid},
+            )
 
     scene_id = state.campaign.active_scene_id
     if scene.id != scene_id:
@@ -633,9 +719,131 @@ def _campaign_greedy_turn(
     )
 
 
+def _campaign_ordered_turn(
+    state: ResearchState,
+    scene: SceneRegion,
+    events: list[PlaytestEvent],
+    entity_type: str,
+    *,
+    tier_unlock_turns: dict[str, int],
+    survey_complete_turns: dict[str, int],
+    milestone_turns: dict[str, int],
+    scene_unlock_turns: dict[str, int],
+    scene_turns: dict[str, int],
+    scenario: PlaytestScenario,
+    seed: str = "local-sky",
+) -> ResearchState:
+    """Campaign autoplay: catalog order, advance when scene is mostly exhausted."""
+    before = state
+    state, newly_unlocked = update_scene_unlocks(state)
+    for sid in newly_unlocked:
+        if sid not in scene_unlock_turns:
+            scene_unlock_turns[sid] = state.turn
+        _record_event(
+            events,
+            state_before=before,
+            state_after=state,
+            turn=state.turn,
+            event_type="scene_unlocked",
+            entity_type=entity_type,
+            message=f"Campaign scene unlocked: {sid}",
+            metadata={"scene_id": sid},
+        )
+
+    scene_id = state.campaign.active_scene_id
+    if scene.id != scene_id:
+        scene = load_scene(scene_id, scene_seed_for(scenario, scene_id, seed))
+
+    turns_in_scene = scene_turns.get(scene_id, 0)
+    next_sid = pick_next_scene_in_order(state)
+    if next_sid and scene_ready_to_advance(
+        state,
+        scene,
+        turns_in_scene=turns_in_scene,
+        max_turns=scene_max_turns(scene_id),
+    ):
+        before_switch = state
+        state, msg = set_active_scene(state, next_sid)
+        if state.campaign.active_scene_id == next_sid:
+            _record_event(
+                events,
+                state_before=before_switch,
+                state_after=state,
+                turn=state.turn,
+                event_type="active_scene_changed",
+                entity_type=entity_type,
+                message=msg,
+                metadata={"scene_id": next_sid},
+            )
+            scene_id = next_sid
+            scene = load_scene(scene_id, scene_seed_for(scenario, scene_id, seed))
+            turns_in_scene = scene_turns.get(scene_id, 0)
+
+    survey_pref = preferred_survey_id(state, scene_id)
+    if survey_pref and should_switch_to_recommended_survey(state, scene_id, survey_pref):
+        before_survey = state
+        state, msg = start_survey(state, survey_pref)
+        _record_event(
+            events,
+            state_before=before_survey,
+            state_after=state,
+            turn=state.turn + 1,
+            event_type="survey_started",
+            entity_type=entity_type,
+            message=msg,
+            survey_id=survey_pref,
+        )
+
+    state = _greedy_turn(
+        state,
+        scene,
+        events,
+        entity_type,
+        tier_unlock_turns=tier_unlock_turns,
+        survey_complete_turns=survey_complete_turns,
+        milestone_turns=milestone_turns,
+        preferred_survey_id=survey_pref,
+    )
+    scene_turns[scene_id] = turns_in_scene + 1
+    return state
+
+
+def _apply_new_events_to_tracker(
+    events: list[PlaytestEvent],
+    start_idx: int,
+    tracker: SceneMetricsTracker,
+    active_scene_id: str,
+) -> None:
+    meaningful_discovery = {
+        "discover_object",
+        "confirm_object",
+        "characterize_object",
+    }
+    for e in events[start_idx:]:
+        if e.event_type == "telescope_unlocked" and e.tier_id:
+            cost = max(0, -e.delta_research_points)
+            tracker.record_tier_unlock(
+                e.tier_id, e.turn, active_scene_id, cost
+            )
+        elif e.event_type in meaningful_discovery and e.object_id:
+            rp_match = re.search(r"\+(\d+) RP", e.message)
+            delta = int(rp_match.group(1)) if rp_match else max(0, e.delta_research_points)
+            tracker.record_discovery_event(
+                active_scene_id=active_scene_id,
+                turn=e.turn,
+                confidence=e.confidence or 0.0,
+                delta_rp=delta,
+            )
+        elif e.event_type == "survey_completed" and e.survey_id:
+            tracker.record_survey_complete(active_scene_id, e.survey_id)
+        elif e.event_type == "milestone_achieved" and e.milestone_id:
+            tracker.record_milestone(active_scene_id, e.milestone_id)
+
+
 STRATEGIES: dict[str, Callable[..., ResearchState]] = {
     "greedy_research": _greedy_turn,
     "campaign_greedy": _campaign_greedy_turn,
+    "campaign_ordered": _campaign_ordered_turn,
 }
 
 
@@ -660,8 +868,11 @@ def _survey_first_turn(*args, **kwargs) -> ResearchState:
                 message=msg,
                 survey_id=candidates[0].id,
             )
-    if kwargs.get("scenario") and kwargs["scenario"].strategy == "campaign_greedy":
+    scenario = kwargs.get("scenario")
+    if scenario and scenario.strategy == "campaign_greedy":
         return _campaign_greedy_turn(*args, **kwargs)
+    if scenario and scenario.strategy == "campaign_ordered":
+        return _campaign_ordered_turn(*args, **kwargs)
     return _greedy_turn(*args, **kwargs)
 
 
@@ -693,8 +904,10 @@ def _build_summary(
     campaign_transition_turn: int | None,
     first_deep_field_discovery_turn: int | None,
     has_now_scope_exclusive: bool,
+    scene_tracker: SceneMetricsTracker | None = None,
+    entity_type: str = "",
 ) -> dict[str, Any]:
-    return {
+    out: dict[str, Any] = {
         "turns_played": turns_played,
         "final_rp": state.research_points,
         "final_tier": state.active_telescope_tier,
@@ -719,6 +932,12 @@ def _build_summary(
         "scene_unlock_turn": dict(scene_unlock_turns or {}),
         "campaign_transition_turn": campaign_transition_turn,
     }
+    if scene_tracker is not None:
+        ladder = scene_tracker.to_summary_dict()
+        out.update(ladder)
+        out["entity_type"] = entity_type
+        out["scene_visit_sequence"] = ladder.get("scene_visit_sequence", [])
+    return out
 
 
 def _collect_warnings(
@@ -732,6 +951,7 @@ def _collect_warnings(
     guidance_hint_ids: list[str],
     has_now_scope_exclusive: bool,
     campaign_transition_turn: int | None = None,
+    run_summary: dict[str, Any] | None = None,
 ) -> list[str]:
     warnings: list[str] = []
 
@@ -795,6 +1015,9 @@ def _collect_warnings(
             "Now-scope unlocked but no speculative_anomaly detection in this run."
         )
 
+    if scenario.id == "campaign_instrument_ladder" and run_summary:
+        warnings.extend(collect_ladder_warnings(run_summary, state))
+
     return warnings
 
 
@@ -831,7 +1054,12 @@ def run_playtest(
 
     scene_cache: dict[str, SceneRegion] = {}
     scene_unlock_turns: dict[str, int] = {}
+    scene_turns: dict[str, int] = {}
     campaign_transition_turn: int | None = None
+    scene_tracker: SceneMetricsTracker | None = None
+    reward_cap_events: list[dict[str, Any]] = []
+    if scenario.use_campaign_progression:
+        scene_tracker = SceneMetricsTracker()
 
     for _ in range(limit):
         scene_id = current_scene_id(scenario, state.turn, state)
@@ -843,6 +1071,7 @@ def run_playtest(
 
         rp_before = state.research_points
         prev_active = state.campaign.active_scene_id
+        event_cursor = len(events)
         state = turn_fn(
             state,
             scene,
@@ -854,7 +1083,41 @@ def run_playtest(
             scenario=scenario,
             seed=seed,
             scene_unlock_turns=scene_unlock_turns,
+            **(
+                {"scene_turns": scene_turns}
+                if strategy_name == "campaign_ordered"
+                else {}
+            ),
         )
+        for e in events[event_cursor:]:
+            if e.event_type == "survey_started" and e.survey_id:
+                if scene_tracker is not None:
+                    scene_tracker.record_survey_started(
+                        state.campaign.active_scene_id, e.survey_id
+                    )
+            if e.event_type == "reward_cap_applied":
+                reward_cap_events.append(
+                    {
+                        "turn": e.turn,
+                        "scene_id": state.campaign.active_scene_id,
+                        "message": e.message,
+                    }
+                )
+        if scene_tracker is not None:
+            active = state.campaign.active_scene_id
+            scene_tracker.sync_campaign_state(state, scene_unlock_turns)
+            if prev_active != active:
+                scene_tracker.record_visit(active, state.turn)
+            scene_tracker.record_visit(active, state.turn)
+            scene_tracker.record_turn(
+                state,
+                rp_before=rp_before,
+                rp_after=state.research_points,
+                active_scene_id=active,
+            )
+            _apply_new_events_to_tracker(
+                events, event_cursor, scene_tracker, active
+            )
         if (
             campaign_transition_turn is None
             and prev_active == "solar-system"
@@ -903,6 +1166,28 @@ def run_playtest(
                 first_deep_field_discovery_turn = e.turn
 
     hint_list = sorted(guidance_hint_ids)
+    pre_summary = _build_summary(
+        state,
+        turns_played=state.turn,
+        tier_unlock_turns=tier_unlock_turns,
+        survey_complete_turns=survey_complete_turns,
+        milestone_turns=milestone_turns,
+        warnings=[],
+        target_reached=target_reached,
+        stuck_turns=max_stuck_turns,
+        rp_by_turn=rp_by_turn,
+        dead_turn_count=max_stuck_turns,
+        first_no_rp_turn=first_no_rp_turn,
+        guidance_hint_ids=hint_list,
+        followup_rp_earned=followup_rp_earned,
+        space_optical_turn=space_optical_turn,
+        scene_unlock_turns=scene_unlock_turns,
+        campaign_transition_turn=campaign_transition_turn,
+        first_deep_field_discovery_turn=first_deep_field_discovery_turn,
+        has_now_scope_exclusive=has_now_scope_exclusive,
+        scene_tracker=scene_tracker,
+        entity_type=entity_type,
+    )
     warnings.extend(
         _collect_warnings(
             state,
@@ -914,6 +1199,7 @@ def run_playtest(
             guidance_hint_ids=hint_list,
             has_now_scope_exclusive=has_now_scope_exclusive,
             campaign_transition_turn=campaign_transition_turn,
+            run_summary=pre_summary,
         )
     )
 
@@ -936,7 +1222,13 @@ def run_playtest(
         campaign_transition_turn=campaign_transition_turn,
         first_deep_field_discovery_turn=first_deep_field_discovery_turn,
         has_now_scope_exclusive=has_now_scope_exclusive,
+        scene_tracker=scene_tracker,
+        entity_type=entity_type,
     )
+    summary["warnings"] = warnings
+    summary["reward_cap_events"] = reward_cap_events
+    summary["reward_cap_count"] = len(reward_cap_events)
+    summary["now_scope_reached"] = "now_scope" in state.unlocked_tiers
 
     return PlaytestRun(
         id=make_run_id(scenario.id, entity_type, seed),
@@ -1238,29 +1530,88 @@ def generate_balance_report(runs: list[PlaytestRun]) -> str:
     lines.append("")
 
     lines.extend(["## 7e. Campaign Scene Progression", ""])
-    campaign_runs = [r for r in runs if r.scenario_id == "solar_to_deep_field_campaign"]
+    campaign_runs = [
+        r
+        for r in runs
+        if r.scenario_id in ("solar_to_deep_field_campaign", "campaign_instrument_ladder")
+    ]
     if campaign_runs:
         for r in campaign_runs:
             s = r.summary
             su = s.get("scene_unlock_turn") or {}
+            visited = [
+                sid
+                for sid, cs in (r.final_state.campaign.scenes or {}).items()
+                if cs.visited
+            ]
             lines.append(
-                f"- `{r.entity_type}`: active `{s.get('active_scene_id')}`, "
-                f"scene-001 unlock@t{su.get('scene-001', '—')}, "
-                f"campaign transition@t{s.get('campaign_transition_turn', '—')}, "
-                f"first deep discovery@t{s.get('first_deep_field_discovery_turn', '—')}"
+                f"- `{r.scenario_id}` / `{r.entity_type}`: active `{s.get('active_scene_id')}`, "
+                f"visited={visited}, transition@t{s.get('campaign_transition_turn', '—')}, "
+                f"unlocks={', '.join(f'{k}@t{v}' for k, v in sorted(su.items()))}"
             )
         no_transition = [
             r
             for r in campaign_runs
-            if r.summary.get("campaign_transition_turn") is None
+            if r.scenario_id == "solar_to_deep_field_campaign"
+            and r.summary.get("campaign_transition_turn") is None
             and r.summary.get("turns_played", 0) >= 10
         ]
         if no_transition:
             balance_flags.append(
                 "Campaign scenario: scene-001 unlocked but active scene never switched to deep field."
             )
+        ladder = [r for r in campaign_runs if r.scenario_id == "campaign_instrument_ladder"]
+        if ladder:
+            shallow = [
+                r
+                for r in ladder
+                if len(
+                    [
+                        sid
+                        for sid, cs in r.final_state.campaign.scenes.items()
+                        if cs.visited
+                    ]
+                )
+                < 3
+            ]
+            if shallow:
+                balance_flags.append(
+                    "Instrument ladder: fewer than 3 campaign scenes visited — "
+                    "check tier pacing or scene auto-switch."
+                )
+            reached_now = sum(1 for r in ladder if r.summary.get("now_scope_reached"))
+            if ladder and reached_now / len(ladder) < 0.5:
+                balance_flags.append(
+                    f"Now-scope reach rate {reached_now}/{len(ladder)} below 50% within "
+                    f"{ladder[0].summary.get('turns_played', '?')} turns — tune late-game surveys/milestones."
+                )
     else:
-        lines.append("- _(no solar_to_deep_field_campaign runs in input)_")
+        lines.append("- _(no campaign progression runs in input)_")
+    lines.append("")
+
+    lines.extend(["## 7f. Campaign Ladder Analysis", ""])
+    lines.append(generate_campaign_ladder_analysis(runs))
+
+    lines.extend(["## 7h. Observation RP Cap Events", ""])
+    ladder_caps = [
+        r
+        for r in runs
+        if r.scenario_id == "campaign_instrument_ladder"
+        and (r.summary.get("reward_cap_count") or 0) > 0
+    ]
+    if ladder_caps:
+        for r in ladder_caps:
+            lines.append(
+                f"- `{r.entity_type}`: {r.summary.get('reward_cap_count')} cap(s); "
+                f"now_scope={r.summary.get('now_scope_reached', False)}"
+            )
+    else:
+        lines.append("- _(no cap events in campaign ladder runs — verify scene-001 observe)_")
+    lines.append("")
+
+    alignment_checks = run_campaign_alignment_checks()
+    lines.extend(["## 7g. Campaign Scene / Survey Alignment", ""])
+    lines.append(alignment_summary_markdown(alignment_checks))
     lines.append("")
 
     lines.extend(["## 8. Warnings", ""])

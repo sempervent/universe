@@ -220,6 +220,23 @@ def _confidence_label(c: float) -> str:
     return "characterized"
 
 
+def _object_signal_requirements(
+    obj: CosmicObject,
+    req: DiscoveryRequirement,
+) -> tuple[set[str], set[str], float, float]:
+    """Merge type defaults with per-object property overrides."""
+    props = obj.properties or {}
+    if props.get("required_signal_types"):
+        required = {str(s) for s in props["required_signal_types"]}
+        optional = {str(s) for s in props.get("optional_signal_types", [])}
+    else:
+        required = {s.value for s in req.required_signal_types}
+        optional = {s.value for s in req.optional_signal_types}
+    min_sens = float(props.get("minimum_sensitivity", req.minimum_sensitivity))
+    min_res = float(props.get("minimum_resolution_arcsec", req.minimum_resolution_arcsec))
+    return required, optional, min_sens, min_res
+
+
 def calculate_identification_confidence(
     obj: CosmicObject,
     state: ResearchState,
@@ -234,12 +251,14 @@ def calculate_identification_confidence(
     resolution = best_resolution_for_state(state)
     max_dist = max_distance_for_state(state)
 
+    required, optional, min_sens, min_res = _object_signal_requirements(obj, req)
+
     # Check minimum sensitivity
-    if sensitivity < req.minimum_sensitivity:
+    if sensitivity < min_sens:
         return 0.0, []
 
     # Check resolution
-    if resolution > req.minimum_resolution_arcsec:
+    if resolution > min_res:
         return 0.0, []
 
     # Check distance (use object's position as rough distance from origin)
@@ -250,8 +269,6 @@ def calculate_identification_confidence(
         return 0.0, []
 
     # Signal coverage
-    required = {s.value for s in req.required_signal_types}
-    optional = {s.value for s in req.optional_signal_types}
     detected_required = required & available_signals
     detected_optional = optional & available_signals
     all_detected = sorted(detected_required | detected_optional)
@@ -261,9 +278,12 @@ def calculate_identification_confidence(
     else:
         signal_coverage = len(detected_required) / len(required)
 
+    if required and signal_coverage < 1.0:
+        return 0.0, sorted(detected_required | detected_optional)
+
     # Base confidence from signal coverage, sensitivity, resolution factors
-    sens_factor = min(1.0, sensitivity / max(req.minimum_sensitivity, 0.01))
-    res_factor = min(1.0, req.minimum_resolution_arcsec / max(resolution, 0.00001))
+    sens_factor = min(1.0, sensitivity / max(min_sens, 0.01))
+    res_factor = min(1.0, min_res / max(resolution, 0.00001))
     base = signal_coverage * min(sens_factor, 1.0) * min(res_factor, 1.0)
 
     # Multi-messenger bonus: each optional signal type detected adds confidence
@@ -480,8 +500,11 @@ def observe_scene(
     from universe.game.scenes import ensure_campaign_state, mark_scene_visited, update_scene_unlocks
     from universe.game.surveys import update_survey_progress_for_discovery
 
+    from universe.game.observation_rewards import apply_discovery_rp_cap
+
     state = ensure_campaign_state(state)
     primary_results = observable_objects(scene, state)
+    primary_results, cap_telemetry = apply_discovery_rp_cap(primary_results, scene.id)
     followup_results, _, followup_counts, last_tiers = apply_followup_observations(
         scene, state, primary_results
     )
@@ -590,6 +613,23 @@ def observe_scene(
                 identification_confidence=0.0,
                 research_points_awarded=0,
                 message=f"Campaign: unlocked observation scene '{label}' ({sid}).",
+            )
+        )
+
+    if cap_telemetry.get("reward_cap_applied"):
+        uncapped = int(cap_telemetry["uncapped_rp"])
+        capped = int(cap_telemetry["capped_rp"])
+        cap_val = int(cap_telemetry["cap_value"])
+        results.append(
+            DiscoveryResult(
+                object_id="__reward_cap__",
+                object_type="reward_cap_event",
+                identification_confidence=0.0,
+                research_points_awarded=0,
+                message=(
+                    f"Discovery RP cap applied ({scene.id}): "
+                    f"{capped} awarded of {uncapped} uncapped (cap {cap_val})."
+                ),
             )
         )
 

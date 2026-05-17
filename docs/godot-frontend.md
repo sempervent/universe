@@ -50,9 +50,9 @@ Python CLI ──┬─ generate solar-system ─→ data/generated/solar-system
 ```
 
 The "frontend bundle" — `tech_tree.json`, `surveys.json`,
-`milestones.json`, `discovery_requirements.json`, `entity_modifiers.json`, plus signal/entity
-metadata — is committed alongside the scripts so the project is runnable
-on first open.  Regenerate with:
+`milestones.json`, `discovery_requirements.json`, `entity_modifiers.json`,
+`scene_catalog.json`, plus signal/entity metadata — is committed alongside
+the scripts so the project is runnable on first open.  Regenerate with:
 
 ```bash
 uv run universe game export-godot-data --out frontends/godot/data
@@ -125,9 +125,27 @@ resolve to `data/generated/solar-system/scene.json` and
 `data/generated/game-state.json` relative to the Godot project.
 
 **Scene 001 deep field:** generate with
-`universe generate scene-001 --seed lyman-alpha-furnace --out data/generated/scene-001`,
-then set `scene_path` to `…/data/generated/scene-001/scene.json` in overrides.
-Use **Reload Scene/State** in-game after changing overrides.
+`universe game generate-scene --scene scene-001`, then use the **Campaign**
+tab **Load Scene** (or set `scene_path` in overrides). Use **Reload Scene/State**
+after changing overrides.
+
+## Campaign scene picker
+
+The **Campaign** tab (Observing Program) lists every entry in
+`scene_catalog.json`:
+
+- Lock/unlock from mirrored `GameState.ensure_campaign` / `update_scene_unlocks`
+  (tier + milestone rules match Python).
+- File status: whether `data/generated/<scene>/scene.json` exists (resolved via
+  `FilePaths.scene_path_for_catalog_entry`).
+- Actions: **Load Scene**, **Set Active**, **Load + Set Active**, **Refresh File Status**.
+
+Godot does **not** invoke `uv run universe …`. Missing files show the exact
+`game generate-scene` command in the detail panel.
+
+**Active vs loaded:** `campaign.active_scene_id` is the observing program focus;
+the loaded `scene.json` drives the 3D sky. The header and Campaign tab warn when
+they differ.
 
 ## Deep-field rendering (Scene 001)
 

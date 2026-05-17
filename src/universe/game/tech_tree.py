@@ -172,7 +172,7 @@ def get_default_tech_tree() -> list[TelescopeTier]:
                 SignalType.GRAVITATIONAL_WAVE, SignalType.NEUTRINO, SignalType.COSMIC_RAY,
             ],
             description="All real instruments combined. Cross-correlation confirms multi-signal events.",
-            research_cost=450,
+            research_cost=420,
             prerequisites=["neutrino_cosmic_ray"],
             unlocks=["dark_matter_mapper"],
             resolution_arcsec=0.00001,
@@ -187,7 +187,7 @@ def get_default_tech_tree() -> list[TelescopeTier]:
             instrument_types=[InstrumentType.WEAK_LENSING_MAPPER, InstrumentType.DARK_MATTER_OBSERVATORY],
             signal_types=[SignalType.WEAK_LENSING, SignalType.DARK_MATTER_INFERENCE],
             description="Statistical mass mapping. Dark matter halos, cosmic web mass distribution.",
-            research_cost=650,
+            research_cost=580,
             prerequisites=["multi_messenger"],
             unlocks=["now_scope"],
             resolution_arcsec=10.0,
@@ -205,7 +205,7 @@ def get_default_tech_tree() -> list[TelescopeTier]:
                 "Fictional causality-independent observatory. Observes the current state "
                 "of distant objects rather than light from the past. Speculative endgame."
             ),
-            research_cost=1000,
+            research_cost=780,
             prerequisites=["dark_matter_mapper"],
             unlocks=[],
             resolution_arcsec=0.0,

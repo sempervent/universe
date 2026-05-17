@@ -83,6 +83,25 @@
 - Save State writes back to the same JSON, with `user://` fallback.
 - New CLI command `game export-godot-data` produces the engine data bundle.
 
+## Phase 4c: Godot campaign scene picker ✅
+
+- **Campaign / Observing Program** tab: full `scene_catalog.json` list, lock/file status, load / set active, CLI generate hints.
+- Mirrored campaign unlock rules in `GameState.gd`; Python remains canonical.
+
+## Phase 3.9: Campaign ladder balance tuning ✅
+
+- Per-scene observation RP caps (`observation_rewards.py`) fix Scene 001 funding spikes.
+- `campaign_ordered` min/max scene turns, survey-first behavior, refined `scene_ready_to_advance`.
+- Late-game: now-scope cost 780, cosmic-web survey rewards, `dark_matter_instrument_online` milestone.
+- Balance report §7h (RP caps), improved `recommended_signals_useful` heuristic.
+
+## Phase 3.8: Campaign ladder balance pass ✅
+
+- Six-scene catalog playtest scenario `campaign_instrument_ladder` with `campaign_ordered` autoplay.
+- Per-scene ladder metrics in playtest summaries (`src/universe/game/campaign_balance.py`).
+- Balance report §7f–7g: Campaign Ladder Analysis + scene/survey alignment checks.
+- Tests: `tests/test_campaign_balance.py`.
+
 ## Phase 4b: Godot playability & telescope feel ✅ (prototype scope)
 
 - ✅ 3D object picking (`Area3D` + camera raycast); selection synced with list + detail + log.

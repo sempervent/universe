@@ -164,6 +164,22 @@ def get_default_milestones() -> list[Milestone]:
             condition_type="signal",
         ),
         Milestone(
+            id="dark_matter_instrument_online",
+            name="Dark Matter Instrument Online",
+            description="Unlock the weak-lensing / dark-matter mapper tier.",
+            reward_research_points=120,
+            condition_type="tier",
+        ),
+        Milestone(
+            id="first_dark_matter_map_complete",
+            name="First Cosmic-Web Survey Complete",
+            description=(
+                "Complete the Cosmic Web Mapping or Dark Matter Inference survey program."
+            ),
+            reward_research_points=200,
+            condition_type="survey",
+        ),
+        Milestone(
             id="now_scope_first_light",
             name="Now-Scope First Light",
             description="Make a first observation through the speculative now-scope.",
@@ -250,6 +266,14 @@ def _milestone_condition(milestone_id: str, state) -> bool:
         return _has_discovery(state, {"cosmic_web_filament", "cosmic_web_node"}, CONFIRMED)
     if milestone_id == "dark_matter_inferred":
         return _has_signal_in_discoveries(state, "dark_matter_inference")
+    if milestone_id == "dark_matter_instrument_online":
+        return "dark_matter_mapper" in state.unlocked_tiers
+    if milestone_id == "first_dark_matter_map_complete":
+        for sid in ("cosmic_web_mapping", "dark_matter_inference_program"):
+            prog = state.survey_progress.get(sid)
+            if prog is not None and prog.completed:
+                return True
+        return False
     if milestone_id == "now_scope_first_light":
         if _has_signal_in_discoveries(state, "speculative_now_signal"):
             return True

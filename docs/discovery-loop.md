@@ -33,6 +33,10 @@ final_confidence = min(1.0, base_confidence + multi_messenger_bonus)
 
 Some **entity backgrounds** (e.g. AI Research Bureau) add a small **confidence bonus** only after the object is already detectable (positive confidence); they cannot force a detection from nothing.
 
+## Observation RP cap
+
+One `observe_scene` pass may discover many objects, but **discovery RP** from primary results is capped per scene (`observation_rewards.py`). Discoveries still update `ResearchState.discoveries`; capped awards show `(capped)` in messages. Survey and milestone RP are not capped.
+
 ## Research points
 
 Points are awarded based on:

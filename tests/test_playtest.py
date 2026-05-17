@@ -222,6 +222,45 @@ class TestPlaytestCLI:
             assert "Telescope Tier Unlock Timing" in text
             assert "Warnings" in text
 
+    def test_balance_report_campaign_ladder_when_present(self):
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as tmp:
+            matrix_dir = Path(tmp) / "matrix"
+            runner.invoke(
+                main,
+                [
+                    "game",
+                    "playtest",
+                    "--scenario",
+                    "campaign_instrument_ladder",
+                    "--entity-type",
+                    "custom",
+                    "--seed",
+                    "ladder-report",
+                    "--max-turns",
+                    "25",
+                    "--out",
+                    str(matrix_dir / "ladder.json"),
+                    "--no-events",
+                ],
+            )
+            report_path = Path(tmp) / "balance-report.md"
+            result = runner.invoke(
+                main,
+                [
+                    "game",
+                    "balance-report",
+                    "--input",
+                    str(matrix_dir),
+                    "--out",
+                    str(report_path),
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            text = report_path.read_text()
+            assert "Campaign Ladder Analysis" in text
+            assert "now-scope-anomaly-field" in text
+
 
 class TestLoadScene:
     def test_load_solar_system(self):

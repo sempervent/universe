@@ -18,6 +18,10 @@ signal action_toggle_labels(enabled: bool)
 signal action_signal_mode_changed(mode: String)
 signal action_reset_state()
 signal action_export_state()
+signal action_campaign_load_scene(scene_id: String)
+signal action_campaign_set_active(scene_id: String)
+signal action_campaign_load_and_set(scene_id: String)
+signal action_campaign_refresh()
 
 const PANEL_BG := Color(0.04, 0.05, 0.08, 0.92)
 const TEXT_DIM := Color(0.65, 0.7, 0.85)
@@ -34,6 +38,15 @@ var _tab_container: TabContainer
 var _tech_text: RichTextLabel
 var _surveys_text: RichTextLabel
 var _milestones_text: RichTextLabel
+var _campaign_summary: Label
+var _campaign_scene_list: ItemList
+var _campaign_detail: RichTextLabel
+var _campaign_cmd: RichTextLabel
+var _btn_campaign_load: Button
+var _btn_campaign_set: Button
+var _btn_campaign_both: Button
+var _btn_campaign_refresh: Button
+var _selected_campaign_id: String = ""
 var _labels_toggle: CheckBox
 var _signal_option: OptionButton
 var _signal_help: RichTextLabel
@@ -72,6 +85,14 @@ func setup_signal_modes(modes: Array) -> void:
 
 func get_signal_mode() -> String:
 	return _signal_mode
+
+
+func select_signal_mode(mode: String) -> void:
+	for i in range(_signal_option.item_count):
+		if _signal_option.get_item_text(i) == mode:
+			_signal_option.select(i)
+			_signal_mode = mode
+			return
 
 
 func is_labels_visible() -> bool:
@@ -437,6 +458,252 @@ func _build_right_panel() -> void:
 	_milestones_text.scroll_active = true
 	_milestones_text.name = "Milestones"
 	_tab_container.add_child(_milestones_text)
+
+	_build_campaign_tab()
+
+
+func _build_campaign_tab() -> void:
+	var scroll := ScrollContainer.new()
+	scroll.name = "Campaign"
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tab_container.add_child(scroll)
+
+	var outer := VBoxContainer.new()
+	outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outer.add_theme_constant_override("separation", 6)
+	scroll.add_child(outer)
+
+	_campaign_summary = _label("Observing Program", 11, TEXT_DIM)
+	_campaign_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	outer.add_child(_campaign_summary)
+
+	_campaign_scene_list = ItemList.new()
+	_campaign_scene_list.custom_minimum_size = Vector2(0, 140)
+	_campaign_scene_list.item_selected.connect(_on_campaign_scene_selected)
+	outer.add_child(_campaign_scene_list)
+
+	_campaign_detail = RichTextLabel.new()
+	_campaign_detail.bbcode_enabled = true
+	_campaign_detail.scroll_active = true
+	_campaign_detail.custom_minimum_size = Vector2(0, 160)
+	outer.add_child(_campaign_detail)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 4)
+	_btn_campaign_load = Button.new()
+	_btn_campaign_load.text = "Load Scene"
+	_btn_campaign_load.pressed.connect(_on_campaign_load_pressed)
+	hb.add_child(_btn_campaign_load)
+	_btn_campaign_set = Button.new()
+	_btn_campaign_set.text = "Set Active"
+	_btn_campaign_set.pressed.connect(_on_campaign_set_pressed)
+	hb.add_child(_btn_campaign_set)
+	_btn_campaign_both = Button.new()
+	_btn_campaign_both.text = "Load + Set Active"
+	_btn_campaign_both.pressed.connect(_on_campaign_both_pressed)
+	hb.add_child(_btn_campaign_both)
+	outer.add_child(hb)
+
+	_btn_campaign_refresh = Button.new()
+	_btn_campaign_refresh.text = "Refresh File Status"
+	_btn_campaign_refresh.pressed.connect(func(): action_campaign_refresh.emit())
+	outer.add_child(_btn_campaign_refresh)
+
+	_campaign_cmd = RichTextLabel.new()
+	_campaign_cmd.bbcode_enabled = true
+	_campaign_cmd.scroll_active = true
+	_campaign_cmd.custom_minimum_size = Vector2(0, 72)
+	outer.add_child(_campaign_cmd)
+
+
+func _sorted_catalog(catalog: Array) -> Array:
+	var sorted: Array = []
+	for entry in catalog:
+		if entry is Dictionary:
+			sorted.append(entry)
+	sorted.sort_custom(func(a, b): return int(a.get("order_index", 0)) < int(b.get("order_index", 0)))
+	return sorted
+
+
+func _survey_names(survey_ids: Array, surveys_map: Dictionary) -> String:
+	var names: PackedStringArray = []
+	for sid in survey_ids:
+		var s: String = str(sid)
+		if surveys_map.has(s):
+			names.append(str(surveys_map[s].get("name", s)))
+		else:
+			names.append(s)
+	return ", ".join(names) if names.size() > 0 else "—"
+
+
+func render_campaign_program(
+	state: Dictionary,
+	catalog: Array,
+	scene: Dictionary,
+	scene_path: String,
+	surveys_map: Dictionary = {},
+) -> void:
+	if _campaign_scene_list == null:
+		return
+	var camp: Dictionary = state.get("campaign", {})
+	var scenes_st: Dictionary = camp.get("scenes", {})
+	var active_id: String = str(camp.get("active_scene_id", "solar-system"))
+	var loaded_id: String = str(scene.get("id", ""))
+	var entity: Dictionary = state.get("research_entity", {})
+	var ent_name: String = str(entity.get("name", "Research Entity"))
+
+	var total := 0
+	var unlocked_n := 0
+	var visited_n := 0
+	for entry in catalog:
+		if not entry is Dictionary:
+			continue
+		total += 1
+		var sid: String = str(entry.get("id", ""))
+		var st: Dictionary = scenes_st.get(sid, {})
+		if st.get("unlocked", sid == "solar-system"):
+			unlocked_n += 1
+		if st.get("visited", false):
+			visited_n += 1
+
+	var scene_class: String = str(scene.get("metadata", {}).get("scene_class", scene.get("scene_class", "?")))
+	_campaign_summary.text = (
+		"%s · Active: %s · Loaded: %s (%s)\n"
+		% [ent_name, active_id, loaded_id if loaded_id != "" else "?", scene_class]
+		+ "Progress: %d/%d unlocked, %d visited · Path: %s"
+		% [unlocked_n, total, visited_n, scene_path]
+	)
+
+	_campaign_scene_list.clear()
+	var sorted := _sorted_catalog(catalog)
+	var select_idx := -1
+	var preserve: String = _selected_campaign_id
+	for i in range(sorted.size()):
+		var entry: Dictionary = sorted[i]
+		var sid: String = str(entry.get("id", ""))
+		var st: Dictionary = scenes_st.get(sid, {})
+		var is_unlocked: bool = st.get("unlocked", sid == "solar-system")
+		var is_active := sid == active_id
+		var visited: bool = st.get("visited", false)
+		var exists := FilePaths.scene_exists_for_catalog_entry(entry)
+		var markers := ""
+		if is_active:
+			markers += "★ "
+		if visited:
+			markers += "✓ "
+		if entry.get("speculative", false):
+			markers += "[SPEC] "
+		var lock := "🔓" if is_unlocked else "🔒"
+		var file_mark := "📄" if exists else "⚠ missing"
+		var line := "%d. %s%s%s — %s" % [
+			int(entry.get("order_index", i)),
+			markers,
+			lock,
+			str(entry.get("name", sid)),
+			file_mark,
+		]
+		_campaign_scene_list.add_item(line)
+		_campaign_scene_list.set_item_metadata(i, sid)
+		if preserve != "" and sid == preserve:
+			select_idx = i
+		elif preserve == "" and select_idx < 0 and is_active:
+			select_idx = i
+	if select_idx >= 0:
+		_campaign_scene_list.select(select_idx)
+		_selected_campaign_id = str(_campaign_scene_list.get_item_metadata(select_idx))
+	elif sorted.size() > 0:
+		_selected_campaign_id = str(sorted[0].get("id", ""))
+
+	_render_campaign_detail(state, catalog, surveys_map)
+	_update_campaign_buttons(state, catalog)
+
+
+func _catalog_entry(catalog: Array, scene_id: String) -> Dictionary:
+	for entry in catalog:
+		if entry is Dictionary and str(entry.get("id", "")) == scene_id:
+			return entry
+	return {}
+
+
+func _render_campaign_detail(
+	state: Dictionary,
+	catalog: Array,
+	surveys_map: Dictionary,
+) -> void:
+	if _campaign_detail == null:
+		return
+	var sid := _selected_campaign_id
+	var entry := _catalog_entry(catalog, sid)
+	if entry.is_empty():
+		_campaign_detail.text = "[i]Select a scene in the list.[/i]"
+		_campaign_cmd.text = ""
+		return
+	var camp: Dictionary = state.get("campaign", {})
+	var st: Dictionary = camp.get("scenes", {}).get(sid, {})
+	var is_unlocked: bool = st.get("unlocked", sid == "solar-system")
+	var exists := FilePaths.scene_exists_for_catalog_entry(entry)
+	var path := FilePaths.scene_path_for_catalog_entry(entry)
+
+	var h := ""
+	h += "[b]%s[/b] [color=#888888](%s)[/color]\n" % [entry.get("name", sid), sid]
+	h += "[i]%s[/i]\n\n" % entry.get("description", "")
+	h += entry.get("teaching_summary", "") + "\n\n"
+	h += "Scale: %s\n" % entry.get("scale_description", "—")
+	h += "Class: %s\n" % entry.get("scene_class", "—")
+	h += "Unlock: %s\n" % entry.get("unlock_requirement", "starter")
+	h += "Surveys: %s\n" % _survey_names(entry.get("recommended_survey_ids", []), surveys_map)
+	var sigs: Array = entry.get("recommended_signal_modes", [])
+	h += "Signals: %s\n" % (", ".join(sigs) if sigs.size() > 0 else "—")
+	h += "File: %s\n" % ("[color=#88ff99]present[/color]" if exists else "[color=#ff8888]missing[/color]")
+	h += "Path: [color=#aaaaaa]%s[/color]\n" % path
+	_campaign_detail.text = h
+
+	var gen := str(entry.get("generate_command", FilePaths.make_generate_command(sid)))
+	var set_cmd := FilePaths.make_set_scene_command(sid)
+	_campaign_cmd.text = (
+		"[b]Generate[/b] (run in terminal):\n[color=#88ccff]%s[/color]\n\n"
+		% gen
+		+ "[b]Set active in Python state[/b]:\n[color=#88ccff]%s[/color]"
+		% set_cmd
+	)
+
+
+func _update_campaign_buttons(state: Dictionary, catalog: Array) -> void:
+	var entry := _catalog_entry(catalog, _selected_campaign_id)
+	if entry.is_empty():
+		_btn_campaign_load.disabled = true
+		_btn_campaign_set.disabled = true
+		_btn_campaign_both.disabled = true
+		return
+	var st: Dictionary = state.get("campaign", {}).get("scenes", {}).get(_selected_campaign_id, {})
+	var is_unlocked: bool = st.get("unlocked", _selected_campaign_id == "solar-system")
+	var exists := FilePaths.scene_exists_for_catalog_entry(entry)
+	_btn_campaign_load.disabled = not is_unlocked or not exists
+	_btn_campaign_set.disabled = not is_unlocked
+	_btn_campaign_both.disabled = not is_unlocked or not exists
+
+
+func _on_campaign_scene_selected(idx: int) -> void:
+	if idx < 0:
+		return
+	_selected_campaign_id = str(_campaign_scene_list.get_item_metadata(idx))
+	action_campaign_refresh.emit()
+
+
+func _on_campaign_load_pressed() -> void:
+	if _selected_campaign_id != "":
+		action_campaign_load_scene.emit(_selected_campaign_id)
+
+
+func _on_campaign_set_pressed() -> void:
+	if _selected_campaign_id != "":
+		action_campaign_set_active.emit(_selected_campaign_id)
+
+
+func _on_campaign_both_pressed() -> void:
+	if _selected_campaign_id != "":
+		action_campaign_load_and_set.emit(_selected_campaign_id)
 
 
 func _build_log_panel() -> void:

@@ -20,18 +20,20 @@ const RANDOM_NAMES_PATH := "res://data/random_entity_names.json"
 const SCENE_CATALOG_PATH := "res://data/scene_catalog.json"
 
 # ── Generated runtime data (lives in the parent repo) ──────────────────
-# Defaults assume the Godot project lives at frontends/godot/ inside the
-# universe repo.  Override by writing user://overrides.json with keys
-# "scene_path" and "state_path".
 const DEFAULT_SCENE_RELATIVE := "../../data/generated/solar-system/scene.json"
 const DEFAULT_STATE_RELATIVE := "../../data/generated/game-state.json"
 const USER_STATE_FALLBACK := "user://game-state.json"
 const USER_OVERRIDES_PATH := "user://overrides.json"
+const DEFAULT_STATE_REPO_RELATIVE := "data/generated/game-state.json"
 
 
 static func project_root() -> String:
-	# OS-native absolute path of the Godot project root.
 	return ProjectSettings.globalize_path("res://")
+
+
+static func get_repo_root() -> String:
+	# Universe repo root (parent of frontends/godot).
+	return project_root().path_join("../..").simplify_path()
 
 
 static func absolute_default_scene() -> String:
@@ -44,6 +46,10 @@ static func absolute_default_state() -> String:
 
 static func absolute_fallback_state() -> String:
 	return ProjectSettings.globalize_path(USER_STATE_FALLBACK)
+
+
+static func default_state_path() -> String:
+	return resolve_state_path()
 
 
 static func read_overrides() -> Dictionary:
@@ -61,12 +67,57 @@ static func read_overrides() -> Dictionary:
 static func resolve_scene_path() -> String:
 	var ov := read_overrides()
 	if ov.has("scene_path") and ov["scene_path"] is String and ov["scene_path"] != "":
-		return ov["scene_path"]
+		return str(ov["scene_path"])
 	return absolute_default_scene()
 
 
 static func resolve_state_path() -> String:
 	var ov := read_overrides()
 	if ov.has("state_path") and ov["state_path"] is String and ov["state_path"] != "":
-		return ov["state_path"]
+		return str(ov["state_path"])
 	return absolute_default_state()
+
+
+static func _resolve_repo_relative(rel_path: String) -> String:
+	var p := rel_path.strip_edges()
+	if p == "":
+		return ""
+	if p.begins_with("/"):
+		return p
+	if p.begins_with("res://"):
+		return ProjectSettings.globalize_path(p)
+	if p.begins_with("user://"):
+		return ProjectSettings.globalize_path(p)
+	# Catalog paths like data/generated/foo — repo root relative.
+	if p.begins_with("data/") or p.begins_with("../"):
+		return get_repo_root().path_join(p).simplify_path()
+	return project_root().path_join(p).simplify_path()
+
+
+static func scene_path_for_catalog_entry(scene_entry: Dictionary) -> String:
+	if scene_entry.is_empty():
+		return ""
+	var explicit: String = str(scene_entry.get("scene_json_path", ""))
+	if explicit != "":
+		return _resolve_repo_relative(explicit)
+	var out_dir: String = str(scene_entry.get("default_output_path", ""))
+	if out_dir == "":
+		return ""
+	return _resolve_repo_relative(out_dir.path_join("scene.json"))
+
+
+static func scene_exists_for_catalog_entry(scene_entry: Dictionary) -> bool:
+	var path := scene_path_for_catalog_entry(scene_entry)
+	return path != "" and FileAccess.file_exists(path)
+
+
+static func make_generate_command(scene_id: String) -> String:
+	return "uv run universe game generate-scene --scene %s" % scene_id
+
+
+static func make_set_scene_command(scene_id: String) -> String:
+	var state_rel := DEFAULT_STATE_REPO_RELATIVE
+	return (
+		"uv run universe game set-scene --scene %s "
+		+ "--state %s --out %s" % [scene_id, state_rel, state_rel]
+	)

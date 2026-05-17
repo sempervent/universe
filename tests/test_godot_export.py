@@ -95,6 +95,42 @@ class TestExportGodotData:
             for t in ["star", "planet", "moon", "galaxy", "quasar", "black_hole"]:
                 assert t in types
 
+    def test_scene_catalog_has_six_campaign_scenes(self):
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "godot-data"
+            runner.invoke(main, ["game", "export-godot-data", "--out", str(out)])
+            data = json.loads((out / "scene_catalog.json").read_text())
+            ids = {e["id"] for e in data}
+            for required in [
+                "solar-system",
+                "scene-001",
+                "radio-cmb-survey",
+                "stellar-remnant-field",
+                "cosmic-web-map",
+                "now-scope-anomaly-field",
+            ]:
+                assert required in ids
+            entry = next(e for e in data if e["id"] == "radio-cmb-survey")
+            for field in [
+                "name",
+                "description",
+                "scene_class",
+                "default_seed",
+                "default_output_path",
+                "unlock_tier_id",
+                "recommended_survey_ids",
+                "recommended_signal_modes",
+                "teaching_summary",
+                "scale_description",
+                "order_index",
+                "speculative",
+                "generator_name",
+                "generate_command",
+                "scene_json_path",
+            ]:
+                assert field in entry, f"missing {field} on radio-cmb-survey"
+
     def test_manifest_lists_files(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
@@ -182,6 +218,7 @@ class TestGodotScaffold:
             "discovery_requirements.json",
             "manifest.json",
             "entity_modifiers.json",
+            "scene_catalog.json",
         ]:
             assert (GODOT_ROOT / "data" / fname).exists(), f"missing data/{fname}"
 
@@ -197,8 +234,30 @@ class TestGodotScaffold:
     def test_readme_explains_how_to_run(self):
         readme = (GODOT_ROOT / "README.md").read_text(encoding="utf-8")
         assert "Godot 4" in readme
-        assert "project.godot" in readme
-        assert "F5" in readme
+
+    def test_campaign_picker_in_godot_scripts(self):
+        fp = (GODOT_ROOT / "scripts" / "FilePaths.gd").read_text(encoding="utf-8")
+        assert "scene_path_for_catalog_entry" in fp
+        assert "scene_exists_for_catalog_entry" in fp
+        assert "make_generate_command" in fp
+        assert "get_repo_root" in fp
+        main_gd = (GODOT_ROOT / "scripts" / "Main.gd").read_text(encoding="utf-8")
+        assert "load_catalog_scene" in main_gd
+        assert "refresh_campaign_ui" in main_gd
+        assert "load_and_set_campaign_scene" in main_gd
+        console = (GODOT_ROOT / "scripts" / "TelescopeConsole.gd").read_text(encoding="utf-8")
+        assert "render_campaign_program" in console
+        assert "Load Scene" in console
+        assert "Set Active" in console
+        assert "Generate" in console
+        assert 'name = "Campaign"' in console or 'name = &"Campaign"' in console
+        gs = (GODOT_ROOT / "scripts" / "GameState.gd").read_text(encoding="utf-8")
+        assert "update_scene_unlocks" in gs
+        assert "ensure_campaign" in gs
+        assert "default_campaign" in gs
+        readme = (GODOT_ROOT / "README.md").read_text(encoding="utf-8")
+        assert "Campaign" in readme
+        assert "generate-scene" in readme
 
     def test_readme_mentions_scene_001_switching(self):
         readme = (GODOT_ROOT / "README.md").read_text(encoding="utf-8")

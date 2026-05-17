@@ -90,6 +90,8 @@ persisted in `localStorage` along with the rest of the game state.
 
 Survey completion turn timing is recorded in autoplay runs (`survey_completed` events). Use `playtest-matrix` + `balance-report` to spot surveys that finish in one turn for all entity types. See [balance-playtesting.md](balance-playtesting.md).
 
+Campaign scenes list `recommended_survey_ids` in the catalog; `campaign_ordered` autoplay prefers those when starting a survey. Report §7g validates that each recommended survey exists and has plausible targets in its scene.
+
 ## Limitations
 
 - Only one active survey at a time. A "queue" is not yet supported.

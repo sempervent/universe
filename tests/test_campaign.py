@@ -28,6 +28,7 @@ class TestSceneCatalog:
     def test_default_scenes_unique_ids(self):
         ids = [s.id for s in get_default_scene_catalog()]
         assert len(ids) == len(set(ids))
+        assert len(ids) == 6
 
     def test_solar_system_unlocked_by_default(self):
         state = ensure_campaign_state(ResearchState())

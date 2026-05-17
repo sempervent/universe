@@ -11,7 +11,7 @@ import click
 
 from universe.export.scene_json import export_scene
 from universe.models import SceneRegion
-from universe.procedural.region import generate_scene_001
+from universe.procedural.registry import CAMPAIGN_SCENE_IDS, generate_scene_by_id
 
 
 @click.group()
@@ -30,18 +30,24 @@ def main() -> None:
 @click.option("--galaxies", default=80, type=int, help="Number of galaxies to generate.")
 @click.option("--nodes", default=12, type=int, help="Number of cosmic web nodes.")
 def generate(scene_id: str, seed: str, out: str, galaxies: int, nodes: int) -> None:
-    """Generate a scene.  Supported: scene-001, solar-system."""
-    if scene_id == "scene-001":
-        scene = generate_scene_001(seed=seed, num_nodes=nodes, num_galaxies=galaxies)
-    elif scene_id in ("solar-system", "starter"):
-        from universe.procedural.solar_system import generate_solar_system
-
-        scene = generate_solar_system(seed=seed)
-        if out == "data/generated/scene-001":
-            out = "data/generated/solar-system"
-    else:
-        click.echo(f"Unknown scene: {scene_id}. Available: scene-001, solar-system", err=True)
+    """Generate a scene (solar-system, scene-001, or campaign observation scenes)."""
+    if scene_id not in CAMPAIGN_SCENE_IDS and scene_id != "starter":
+        available = ", ".join(sorted(CAMPAIGN_SCENE_IDS))
+        click.echo(f"Unknown scene: {scene_id}. Available: {available}", err=True)
         sys.exit(1)
+
+    if scene_id == "scene-001":
+        scene = generate_scene_by_id(scene_id, seed=seed, num_nodes=nodes, num_galaxies=galaxies)
+    else:
+        scene = generate_scene_by_id(scene_id, seed=seed)
+        if scene_id in ("solar-system", "starter") and out == "data/generated/scene-001":
+            out = "data/generated/solar-system"
+        elif out == "data/generated/scene-001":
+            from universe.game.scenes import get_scene_definition
+
+            defn = get_scene_definition(scene_id)
+            if defn:
+                out = defn.default_output_path
 
     click.echo(f"Generating {scene_id} with seed='{seed}' ...")
     artifacts = export_scene(scene, out)
@@ -362,6 +368,7 @@ def game_generate_scene(scene_id: str, seed: str | None, out: str | None) -> Non
     """Generate a campaign scene using catalog defaults (wraps universe generate)."""
     from universe.export.scene_json import export_scene
     from universe.game.scenes import get_scene_definition
+    from universe.procedural.registry import generate_scene_by_id
 
     defn = get_scene_definition(scene_id)
     if defn is None:
@@ -372,16 +379,13 @@ def game_generate_scene(scene_id: str, seed: str | None, out: str | None) -> Non
     use_out = out or defn.default_output_path
     gen = defn.generator_name or defn.id
 
-    if gen in ("solar-system", "starter"):
-        from universe.procedural.solar_system import generate_solar_system
-
-        scene = generate_solar_system(seed=use_seed)
-    elif gen == "scene-001":
-        from universe.procedural.region import generate_scene_001
-
-        scene = generate_scene_001(seed=use_seed)
-    else:
-        click.echo(f"No generator for scene: {gen}", err=True)
+    try:
+        if gen == "scene-001":
+            scene = generate_scene_by_id(gen, seed=use_seed)
+        else:
+            scene = generate_scene_by_id(gen, seed=use_seed)
+    except ValueError as exc:
+        click.echo(str(exc), err=True)
         sys.exit(1)
 
     click.echo(f"Generating {defn.name} (id={scene_id}, seed={use_seed}) ...")

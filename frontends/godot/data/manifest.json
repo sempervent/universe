@@ -7,7 +7,8 @@
     "signal_types.json",
     "entity_types.json",
     "random_entity_names.json",
-    "entity_modifiers.json"
+    "entity_modifiers.json",
+    "scene_catalog.json"
   ],
-  "schema_version": "0.2.0"
+  "schema_version": "0.3.0"
 }

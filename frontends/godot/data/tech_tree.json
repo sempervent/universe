@@ -251,7 +251,7 @@
       "cosmic_ray"
     ],
     "description": "All real instruments combined. Cross-correlation confirms multi-signal events.",
-    "research_cost": 450,
+    "research_cost": 420,
     "prerequisites": [
       "neutrino_cosmic_ray"
     ],
@@ -277,7 +277,7 @@
       "dark_matter_inference"
     ],
     "description": "Statistical mass mapping. Dark matter halos, cosmic web mass distribution.",
-    "research_cost": 650,
+    "research_cost": 580,
     "prerequisites": [
       "multi_messenger"
     ],
@@ -301,7 +301,7 @@
       "speculative_now_signal"
     ],
     "description": "Fictional causality-independent observatory. Observes the current state of distant objects rather than light from the past. Speculative endgame.",
-    "research_cost": 1000,
+    "research_cost": 780,
     "prerequisites": [
       "dark_matter_mapper"
     ],

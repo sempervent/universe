@@ -1,0 +1,169 @@
+[
+  {
+    "id": "solar-system",
+    "name": "Local Solar System",
+    "description": "Starter tutorial sky: Sun, Moon, planets, and local surveys. Teaches naked-eye and ground optical observation.",
+    "scene_class": "solar_system",
+    "generator_name": "solar-system",
+    "default_seed": "local-sky",
+    "default_output_path": "data/generated/solar-system",
+    "unlock_tier_id": null,
+    "unlock_milestone_id": null,
+    "recommended_survey_ids": [
+      "local_sky_survey",
+      "planetary_census",
+      "small_bodies_watch"
+    ],
+    "recommended_signal_modes": [
+      "visible_light"
+    ],
+    "teaching_summary": "Local solar system tutorial sky: survey bright planets and moons before deep-field campaigns.",
+    "scale_description": "Distances stored as Mpc (AU \u00d7 conversion); Godot uses a log-radial layout.",
+    "order_index": 0,
+    "speculative": false,
+    "generate_command": "uv run universe game generate-scene --scene solar-system",
+    "legacy_generate_command": "uv run universe generate solar-system --seed local-sky --out data/generated/solar-system",
+    "scene_json_path": "data/generated/solar-system/scene.json",
+    "unlock_requirement": "none (starter scene)"
+  },
+  {
+    "id": "scene-001",
+    "name": "The Lyman-alpha Furnace",
+    "description": "High-redshift protocluster deep field (z \u2248 3.1): galaxies, LAB, quasars, compact objects, cosmic web, and speculative endgame targets.",
+    "scene_class": "deep_field",
+    "generator_name": "scene-001",
+    "default_seed": "lyman-alpha-furnace",
+    "default_output_path": "data/generated/scene-001",
+    "unlock_tier_id": "space_optical",
+    "unlock_milestone_id": "first_deep_field_ready",
+    "recommended_survey_ids": [
+      "deep_field_survey",
+      "radio_sky_survey",
+      "compact_object_search",
+      "cosmic_web_mapping",
+      "dark_matter_inference_program",
+      "now_scope_first_light"
+    ],
+    "recommended_signal_modes": [
+      "visible_light",
+      "radio",
+      "xray",
+      "weak_lensing",
+      "dark_matter_inference",
+      "speculative_now_signal"
+    ],
+    "teaching_summary": "Deep-field protocluster: use signal modes to stress different physics (radio jets, X-ray accretion, weak lensing structure).",
+    "scale_description": "Comoving positions in Mpc; normalize by scene size_mpc for navigation.",
+    "order_index": 1,
+    "speculative": false,
+    "generate_command": "uv run universe game generate-scene --scene scene-001",
+    "legacy_generate_command": "uv run universe generate scene-001 --seed lyman-alpha-furnace --out data/generated/scene-001",
+    "scene_json_path": "data/generated/scene-001/scene.json",
+    "unlock_requirement": "tier space_optical or milestone first_deep_field_ready"
+  },
+  {
+    "id": "radio-cmb-survey",
+    "name": "Radio CMB Survey",
+    "description": "Radio/microwave sky: CMB shell, radio-loud galaxies, jet quasars, and compact pulsars.",
+    "scene_class": "radio_survey",
+    "generator_name": "radio-cmb-survey",
+    "default_seed": "radio-first-light",
+    "default_output_path": "data/generated/radio-cmb-survey",
+    "unlock_tier_id": "radio",
+    "unlock_milestone_id": null,
+    "recommended_survey_ids": [
+      "radio_sky_survey"
+    ],
+    "recommended_signal_modes": [
+      "radio",
+      "microwave"
+    ],
+    "teaching_summary": "Radio and microwave instruments reveal the cold CMB background and energetic jets invisible in ordinary light.",
+    "scale_description": "~35 cMpc schematic radio survey layout.",
+    "order_index": 2,
+    "speculative": false,
+    "generate_command": "uv run universe game generate-scene --scene radio-cmb-survey",
+    "legacy_generate_command": "uv run universe generate radio-cmb-survey --seed radio-first-light --out data/generated/radio-cmb-survey",
+    "scene_json_path": "data/generated/radio-cmb-survey/scene.json",
+    "unlock_requirement": "tier radio"
+  },
+  {
+    "id": "stellar-remnant-field",
+    "name": "Stellar Remnant Field",
+    "description": "High-energy compact sources: magnetars, black-hole candidates, and accretion-powered quasars.",
+    "scene_class": "high_energy",
+    "generator_name": "stellar-remnant-field",
+    "default_seed": "high-energy-remnants",
+    "default_output_path": "data/generated/stellar-remnant-field",
+    "unlock_tier_id": "xray_gamma",
+    "unlock_milestone_id": null,
+    "recommended_survey_ids": [
+      "compact_object_search"
+    ],
+    "recommended_signal_modes": [
+      "xray",
+      "gamma_ray",
+      "radio"
+    ],
+    "teaching_summary": "High-energy astronomy reveals compact remnants and accretion violence.",
+    "scale_description": "~28 cMpc field emphasizing X-ray/gamma detections.",
+    "order_index": 3,
+    "speculative": false,
+    "generate_command": "uv run universe game generate-scene --scene stellar-remnant-field",
+    "legacy_generate_command": "uv run universe generate stellar-remnant-field --seed high-energy-remnants --out data/generated/stellar-remnant-field",
+    "scene_json_path": "data/generated/stellar-remnant-field/scene.json",
+    "unlock_requirement": "tier xray_gamma"
+  },
+  {
+    "id": "cosmic-web-map",
+    "name": "Cosmic Web Map",
+    "description": "Large-scale structure: filaments, voids, and galaxies as weak-lensing and dark-matter tracers.",
+    "scene_class": "deep_field",
+    "generator_name": "cosmic-web-map",
+    "default_seed": "invisible-architecture",
+    "default_output_path": "data/generated/cosmic-web-map",
+    "unlock_tier_id": "dark_matter_mapper",
+    "unlock_milestone_id": null,
+    "recommended_survey_ids": [
+      "cosmic_web_mapping",
+      "dark_matter_inference_program"
+    ],
+    "recommended_signal_modes": [
+      "weak_lensing",
+      "dark_matter_inference"
+    ],
+    "teaching_summary": "Weak lensing and galaxy distributions infer invisible mass structure.",
+    "scale_description": "~60 cMpc region with embedded cosmic web graph.",
+    "order_index": 4,
+    "speculative": false,
+    "generate_command": "uv run universe game generate-scene --scene cosmic-web-map",
+    "legacy_generate_command": "uv run universe generate cosmic-web-map --seed invisible-architecture --out data/generated/cosmic-web-map",
+    "scene_json_path": "data/generated/cosmic-web-map/scene.json",
+    "unlock_requirement": "tier dark_matter_mapper"
+  },
+  {
+    "id": "now-scope-anomaly-field",
+    "name": "Now-Scope Anomaly Field",
+    "description": "Speculative endgame field with fictional causality-independent anomalies.",
+    "scene_class": "speculative",
+    "generator_name": "now-scope-anomaly-field",
+    "default_seed": "impossible-now",
+    "default_output_path": "data/generated/now-scope-anomaly-field",
+    "unlock_tier_id": "now_scope",
+    "unlock_milestone_id": null,
+    "recommended_survey_ids": [
+      "now_scope_first_light"
+    ],
+    "recommended_signal_modes": [
+      "speculative_now_signal"
+    ],
+    "teaching_summary": "Fictional now-scope observation beyond light-cone constraints.",
+    "scale_description": "Speculative schematic field \u2014 not real astrophysics.",
+    "order_index": 5,
+    "speculative": true,
+    "generate_command": "uv run universe game generate-scene --scene now-scope-anomaly-field",
+    "legacy_generate_command": "uv run universe generate now-scope-anomaly-field --seed impossible-now --out data/generated/now-scope-anomaly-field",
+    "scene_json_path": "data/generated/now-scope-anomaly-field/scene.json",
+    "unlock_requirement": "tier now_scope"
+  }
+]

@@ -80,9 +80,10 @@ uv run universe game observe \
   --state data/generated/game-state.json \
   --out data/generated/game-state.json
 
-# Campaign scenes (solar-system → scene-001 when space_optical unlocks)
+# Campaign scenes (unlock with instrument tiers — see docs/campaign-scenes.md)
 uv run universe game scenes --state data/generated/game-state.json
-# See docs/campaign-progression.md for generate / set-scene workflow
+uv run universe game generate-scene --scene radio-cmb-survey
+# See docs/campaign-progression.md for full workflow
 
 # List milestones
 uv run universe game milestones --state data/generated/game-state.json
@@ -125,9 +126,16 @@ uv run universe game playtest-matrix --out data/generated/playtests/matrix
 uv run universe game balance-report \
   --input data/generated/playtests/matrix \
   --out data/generated/playtests/balance-report.md
+
+# Full six-scene campaign ladder (ordered autoplay)
+uv run universe game playtest \
+  --scenario campaign_instrument_ladder \
+  --entity-type private_institute \
+  --seed local-sky \
+  --out data/generated/playtests/campaign_instrument_ladder_private.json
 ```
 
-See [docs/balance-playtesting.md](docs/balance-playtesting.md).
+See [docs/balance-playtesting.md](docs/balance-playtesting.md). Campaign ladder findings appear in **§7f Campaign Ladder Analysis** when matrix runs include `campaign_instrument_ladder`.
 
 ## Quickstart — Telescope UI (browser game)
 

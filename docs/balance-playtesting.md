@@ -62,8 +62,28 @@ Accepts a single run JSON, a matrix directory, or any folder of run JSON files.
 | `compact_object_transition` | scene-001 | X-ray/gamma compact objects |
 | `late_game_inference` | scene-001 | Weak lensing / dark matter |
 | `now_scope_smoke` | scene-001 | Speculative tier smoke test |
+| `solar_to_deep_field_campaign` | solar → scene-001 | Campaign greedy; auto-switch at deep-field unlock |
+| `campaign_instrument_ladder` | all six campaign scenes | Full ladder pacing (`campaign_ordered` strategy) |
 
 Strategy default: `greedy_research` (start matching survey → observe → milestones/surveys auto-claim → cheapest upgrade → set highest active tier).
+
+### Campaign autoplay strategies
+
+| Strategy | Behavior |
+|----------|----------|
+| `greedy_research` | Single-scene greedy loop |
+| `campaign_greedy` | On unlock, jump to highest newly unlocked scene by catalog order |
+| `campaign_ordered` | Stay in catalog order; advance only when current scene has meaningful discoveries and few easy targets remain; prefer scene-recommended surveys |
+
+Use `campaign_instrument_ladder` with `campaign_ordered` for ladder balance reports:
+
+```bash
+uv run universe game playtest \
+  --scenario campaign_instrument_ladder \
+  --entity-type private_institute \
+  --seed local-sky \
+  --out data/generated/playtests/campaign_instrument_ladder_private.json
+```
 
 ## Event types
 
@@ -80,7 +100,22 @@ Each event records RP before/after and `delta_research_points`.
 5. **Survey / milestone timing** — completion turns.
 6. **RP economy** — RP curves by turn.
 7. **Warnings** — stuck loops, one-turn surveys, unreachable targets.
-8. **Suggested adjustments** — heuristic flags (not automatic rebalance).
+8. **Warnings** — stuck loops, ladder-specific scene pacing.
+9. **Suggested adjustments** — heuristic flags (not automatic rebalance).
+
+Sections **7e–7g** cover campaign progression:
+
+- **7e** — scene unlocks and visits (all campaign scenarios)
+- **7f Campaign Ladder Analysis** — per-scene unlock/visit/discovery table, median first-discovery turns, visit sequences, tier unlock context, now-scope status (from `campaign_instrument_ladder` runs)
+- **7g** — catalog alignment checks (recommended surveys, detectable objects at unlock tier, signal-mode fit)
+
+### Ladder metrics (in `run.json` → `summary`)
+
+Per scene: `unlock_turn`, `first_visit_turn`, `first_discovery_turn`, `first_confirmed_discovery_turn`, `total_discoveries`, `total_rp_earned`, `surveys_completed`, `milestones_achieved`, `turns_spent_active`, `no_rp_turns_while_active`.
+
+Also: `scene_visit_sequence`, `tier_unlock_context` (tier → turn, active scene, RP cost).
+
+Alignment validation: `universe.game.campaign_balance.run_campaign_alignment_checks()` (used in report §7g and `tests/test_campaign_balance.py`).
 
 ### Warning examples
 
@@ -90,6 +125,10 @@ Each event records RP before/after and `delta_research_points`.
 - **Guidance hints** — section 7c lists `solar_exhausted_deep_field_ready` when applicable.
 - **Cannot reach space_optical** — solar-only loop may need more RP sources.
 - **Now-scope exclusive content** — no detections tagged with now-scope tier.
+- **Scene unlocked but never visited** — ladder autoplay skipped a program.
+- **Scene visited but no discoveries** — scene may lack detectable objects at unlock tier.
+- **First discovery late** — more than ~8 turns after unlock (configurable in `collect_ladder_warnings`).
+- **Visit sequence out of order** — intermediate scene skipped when a later one was visited first.
 
 ## Frontend manual playtests
 
@@ -103,6 +142,21 @@ Each event records RP before/after and `delta_research_points`.
 - **Follow-up observations**: capped diminishing RP per object (see `discovery.py`).
 - **Guidance hints**: `game status`, `game report`, and balance report section 7c.
 - **Causality Shadow** (`speculative_anomaly` in Scene 001): now-scope-only placeholder.
+
+## Observation RP caps
+
+Each scene caps **primary discovery RP** per `observe_scene` pass (discoveries still register; only funding is bounded). Caps live in `src/universe/game/observation_rewards.py`:
+
+| Scene | Cap per observe |
+|-------|-----------------|
+| solar-system | 70 |
+| scene-001 | 250 |
+| radio-cmb-survey | 150 |
+| stellar-remnant-field | 150 |
+| cosmic-web-map | 250 |
+| now-scope-anomaly-field | 400 |
+
+Survey and milestone RP are **not** capped. Playtests record `reward_cap_applied` events; balance report §7h summarizes cap frequency.
 
 ## Assumptions
 

@@ -96,6 +96,10 @@ func _setup_console() -> void:
 	console.action_signal_mode_changed.connect(_on_signal_mode_changed)
 	console.action_reset_state.connect(_on_reset_state)
 	console.action_export_state.connect(_on_export_state)
+	console.action_campaign_load_scene.connect(_on_campaign_load_scene)
+	console.action_campaign_set_active.connect(_on_campaign_set_active_scene)
+	console.action_campaign_load_and_set.connect(_on_campaign_load_and_set_scene)
+	console.action_campaign_refresh.connect(refresh_campaign_ui)
 
 
 func _load_signal_modes_json() -> Array:
@@ -157,9 +161,112 @@ func _load_scene_and_state() -> void:
 		scene_data = {"id": "missing", "name": "(no scene loaded)", "objects": []}
 
 	state = GameStateS.load_state(_state_path)
+	state = load_campaign_catalog()
 	_last_save_path = _state_path
 	if state.get("research_entity", {}).get("name", "") == GameStateS.DEFAULT_ENTITY_NAME:
 		_log("Tip: set the entity name with `universe game init` before launch.")
+
+
+func load_campaign_catalog() -> Dictionary:
+	scene_catalog = _load_scene_catalog()
+	state = GameStateS.ensure_campaign(state, scene_catalog)
+	return GameStateS.update_scene_unlocks(state, scene_catalog)["state"]
+
+
+func refresh_campaign_ui() -> void:
+	if scene_catalog.is_empty():
+		scene_catalog = _load_scene_catalog()
+	state = GameStateS.ensure_campaign(state, scene_catalog)
+	console.render_campaign_program(
+		state, scene_catalog, scene_data, _scene_path, surveys_map,
+	)
+
+
+func refresh_campaign_unlocks() -> void:
+	if scene_catalog.is_empty():
+		return
+	var result: Dictionary = GameStateS.update_scene_unlocks(state, scene_catalog)
+	state = result["state"]
+	for sid in result.get("newly_unlocked", []):
+		var entry := _catalog_entry(sid)
+		var nm: String = str(entry.get("name", sid)) if not entry.is_empty() else str(sid)
+		_log("New observing scene unlocked: %s" % nm, "#ffcc66")
+		if not entry.is_empty() and not FilePaths.scene_exists_for_catalog_entry(entry):
+			_log("Generate: %s" % FilePaths.make_generate_command(sid), "#88ccff")
+	refresh_campaign_ui()
+
+
+func _catalog_entry(scene_id: String) -> Dictionary:
+	for entry in scene_catalog:
+		if entry is Dictionary and str(entry.get("id", "")) == scene_id:
+			return entry
+	return {}
+
+
+func load_catalog_scene(scene_id: String) -> bool:
+	var entry := _catalog_entry(scene_id)
+	if entry.is_empty():
+		_log("Unknown campaign scene: %s" % scene_id, "#ff8888")
+		return false
+	var st: Dictionary = state.get("campaign", {}).get("scenes", {}).get(scene_id, {})
+	if not st.get("unlocked", scene_id == "solar-system"):
+		_log(
+			"Scene locked. Requires: %s" % entry.get("unlock_requirement", "?"),
+			"#ff8888",
+		)
+		return false
+	var path := FilePaths.scene_path_for_catalog_entry(entry)
+	if not FileAccess.file_exists(path):
+		_log("Scene file missing. Run:\n%s" % FilePaths.make_generate_command(scene_id), "#ff8888")
+		return false
+	_scene_path = path
+	scene_data = SceneLoaderS.load_scene(_scene_path)
+	if not SceneLoaderS.validate_scene_minimal(scene_data):
+		_log("[!] Invalid scene at %s" % _scene_path, "#ff8888")
+		return false
+	_apply_scene_signal_mode_from_metadata()
+	_log("Loaded scene: %s" % scene_data.get("name", scene_id), "#88ff99")
+	_render_all()
+	_apply_camera_framing()
+	return true
+
+
+func set_active_campaign_scene(scene_id: String) -> bool:
+	var res: Dictionary = GameStateS.set_active_campaign_scene(state, scene_id, scene_catalog)
+	if not res.get("ok", false):
+		_log(str(res.get("message", "Failed.")), "#ff8888")
+		return false
+	state = res["state"]
+	_log(str(res.get("message", "OK")), "#88ff99")
+	refresh_campaign_ui()
+	return true
+
+
+func load_and_set_campaign_scene(scene_id: String) -> bool:
+	if not load_catalog_scene(scene_id):
+		return false
+	return set_active_campaign_scene(scene_id)
+
+
+func _apply_scene_signal_mode_from_metadata() -> void:
+	var meta: Dictionary = scene_data.get("metadata", {})
+	if meta is Dictionary:
+		var mode: String = str(meta.get("recommended_initial_signal_mode", ""))
+		if mode != "":
+			console.select_signal_mode(mode)
+			_on_signal_mode_changed(mode)
+
+
+func _on_campaign_load_scene(scene_id: String) -> void:
+	load_catalog_scene(scene_id)
+
+
+func _on_campaign_set_active_scene(scene_id: String) -> void:
+	set_active_campaign_scene(scene_id)
+
+
+func _on_campaign_load_and_set_scene(scene_id: String) -> void:
+	load_and_set_campaign_scene(scene_id)
 
 
 func _apply_camera_framing() -> void:
@@ -189,7 +296,7 @@ func _render_all() -> void:
 	console.render_header(state, scene_data, _last_save_path, _scene_path, mod)
 	console.render_signal_mode_help(console.get_signal_mode(), SceneLoaderS.is_deep_field_scene(scene_data))
 	console.render_survey_hint(scene_data, state, surveys_map)
-	console.render_campaign_hint(state, scene_catalog, scene_data, _scene_path)
+	refresh_campaign_ui()
 	console.render_detail(state, requirements_map)
 	console.render_tech_tree(state, tech_tree, entity_modifiers)
 	console.render_surveys(state, surveys, surveys_map, entity_modifiers)
@@ -379,6 +486,7 @@ func _post_observe() -> void:
 		var spec := " [SPECULATIVE]" if m.get("speculative", false) else ""
 		var rp: int = int(m.get("_awarded_rp", m.get("reward_research_points", 0)))
 		_log("Milestone: %s%s — +%d RP" % [m["name"], spec, rp], "#ffcc66")
+	refresh_campaign_unlocks()
 	_render_all()
 
 
@@ -408,6 +516,7 @@ func _on_unlock_tier(tid: String) -> void:
 		sigs[s] = true
 	state["known_signal_types"] = sigs.keys()
 	_log("Unlocked tier: %s" % tier["name"], "#88ff99")
+	refresh_campaign_unlocks()
 	_post_observe()
 
 
@@ -437,6 +546,7 @@ func _on_save() -> void:
 
 func _on_reload() -> void:
 	_load_scene_and_state()
+	refresh_campaign_unlocks()
 	_render_all()
 	_apply_camera_framing()
 	_log("Scene + state reloaded from disk.", "#7799cc")

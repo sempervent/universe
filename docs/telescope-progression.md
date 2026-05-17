@@ -122,3 +122,7 @@ The player advances through 12 telescope tiers, each unlocking new signal types,
 - Mid tiers require deliberate observation and multi-instrument thinking.
 - Late tiers are expensive and reward accumulated skill.
 - The final tier is a narrative reward, not a scientific claim.
+
+## Campaign alignment
+
+Each tier unlocks campaign scenes that expect its signal families (`radio` → `radio-cmb-survey`, `xray_gamma` → `stellar-remnant-field`, etc.). Use `campaign_instrument_ladder` playtests and balance report §7f to verify players reach each scene near the matching tier unlock, not several tiers early or late.

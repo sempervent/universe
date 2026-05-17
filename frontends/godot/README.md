@@ -13,7 +13,8 @@ discover → survey → milestone loop.
 - ✅ **Telescope camera** — orbit, zoom, pan, **F** focus selection, **R** reset, **L** toggles labels (checkbox + hotkey)
 - ✅ **Signal visualization modes** — palette + emphasize/dim by instrument (from `discovery_requirements.json` + heuristics)
 - ✅ **Discovery visuals** — materials reflect confidence band; selected object gets a highlight pass
-- ✅ Observatory console UI (header, object list, detail, tech tree, surveys, milestones, log, reset + export JSON)
+- ✅ Observatory console UI (header, object list, detail, tech tree, surveys, milestones, **Campaign / Observing Program** tab, log, reset + export JSON)
+- ✅ **Campaign scene picker** — list all catalog scenes, lock/unlock status, file present/missing, load / set active / generate commands (Python CLI only)
 - ✅ Save/load game state (repo path with `user://game-state.json` fallback; path shown in header)
 - ✅ Tech-tree unlocks, survey progression, milestone evaluation
 - ⚠ Visual polish is intentionally minimal — clarity over beauty
@@ -70,12 +71,42 @@ frontends/godot/
 3. Press **F5** to run. The default main scene (`scenes/Main.tscn`) loads
    the solar-system scene and your game state automatically.
 
-### Switching to Scene 001 (deep field)
+### Campaign scene picker (Observing Program tab)
 
-Generate the deep-field scene from the repo root, then point Godot at it:
+Godot **cannot** run Python generators. Use the **Campaign** tab (right panel) to:
+
+1. See all six campaign scenes, unlock status, and whether `scene.json` exists on disk.
+2. **Load Scene** — switch the 3D view to a generated scene file (catalog default path).
+3. **Set Active** — update `campaign.active_scene_id` in game state (mirror of `universe game set-scene`).
+4. **Load + Set Active** — both at once when the file exists.
+
+If a scene file is missing, the tab shows:
 
 ```bash
-uv run universe generate scene-001 --seed lyman-alpha-furnace --out data/generated/scene-001
+uv run universe game generate-scene --scene radio-cmb-survey
+```
+
+Generate all campaign scenes once:
+
+```bash
+uv run universe game generate-scene --scene solar-system
+uv run universe game generate-scene --scene scene-001
+uv run universe game generate-scene --scene radio-cmb-survey
+uv run universe game generate-scene --scene stellar-remnant-field
+uv run universe game generate-scene --scene cosmic-web-map
+uv run universe game generate-scene --scene now-scope-anomaly-field
+```
+
+**Active scene vs loaded scene:** the campaign tracks which program you are on (`active_scene_id`); the loaded `scene.json` is what you see in the viewport. They can differ — the tab warns you when they do.
+
+Advanced: `user://overrides.json` still overrides default scene/state paths for manual setups.
+
+### Switching to Scene 001 (deep field)
+
+Generate the deep-field scene from the repo root, then use the Campaign tab or overrides:
+
+```bash
+uv run universe game generate-scene --scene scene-001
 ```
 
 Use absolute paths in `user://overrides.json` (via *Project → Open User Data Folder*):

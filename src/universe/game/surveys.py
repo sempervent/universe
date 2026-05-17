@@ -134,7 +134,7 @@ def get_default_survey_programs() -> list[SurveyProgram]:
             target_object_types=["cmb_background", "quasar", "galaxy"],
             scene_scope=SurveyScope.ANY.value,
             completion_goal=5,
-            reward_research_points=75,
+            reward_research_points=90,
         ),
         SurveyProgram(
             id="compact_object_search",
@@ -145,7 +145,7 @@ def get_default_survey_programs() -> list[SurveyProgram]:
             target_object_types=["black_hole", "magnetar"],
             scene_scope=SurveyScope.DEEP_FIELD.value,
             completion_goal=2,
-            reward_research_points=100,
+            reward_research_points=125,
         ),
         SurveyProgram(
             id="multi_messenger_event_program",
@@ -167,8 +167,8 @@ def get_default_survey_programs() -> list[SurveyProgram]:
             required_signal_types=["weak_lensing"],
             target_object_types=["cosmic_web_filament", "cosmic_web_node", "void"],
             scene_scope=SurveyScope.DEEP_FIELD.value,
-            completion_goal=8,
-            reward_research_points=225,
+            completion_goal=3,
+            reward_research_points=300,
         ),
         SurveyProgram(
             id="dark_matter_inference_program",
@@ -178,8 +178,8 @@ def get_default_survey_programs() -> list[SurveyProgram]:
             required_signal_types=["dark_matter_inference", "weak_lensing"],
             target_object_types=["cosmic_web_filament", "void", "galaxy"],
             scene_scope=SurveyScope.DEEP_FIELD.value,
-            completion_goal=5,
-            reward_research_points=300,
+            completion_goal=4,
+            reward_research_points=400,
         ),
         SurveyProgram(
             id="now_scope_first_light",

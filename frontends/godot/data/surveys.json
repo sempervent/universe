@@ -1,8 +1,8 @@
 [
   {
     "id": "local_sky_survey",
-    "name": "Local Sky Survey",
-    "description": "Catalogue the brightest local sky targets \u2014 Sun, Moon, naked-eye planets.",
+    "name": "First Light Survey",
+    "description": "Tutorial program: catalogue bright local targets (Sun, Moon, planets). Teaches the observe \u2192 survey \u2192 upgrade loop before deep-field work.",
     "required_tier_ids": [
       "naked_eye"
     ],
@@ -13,11 +13,11 @@
       "moon"
     ],
     "scene_scope": "solar_system",
-    "completion_goal": 5,
-    "reward_research_points": 10,
+    "completion_goal": 8,
+    "reward_research_points": 8,
     "unlocks": [],
     "speculative": false,
-    "flavor": "Every observatory begins by re-discovering the obvious sky.",
+    "flavor": "Introductory survey \u2014 intentionally quick, not a long-term RP faucet.",
     "min_confidence": 0.5
   },
   {
@@ -63,7 +63,7 @@
   {
     "id": "deep_field_survey",
     "name": "Deep Field Survey",
-    "description": "Long-exposure imaging of distant galaxies, quasars, and Lyman-alpha blobs.",
+    "description": "Bridge from the solar tutorial to Scene 001 (Lyman-alpha Furnace): long-exposure imaging of distant galaxies, quasars, and Lyman-alpha blobs. Generate scene-001 after unlocking space_optical.",
     "required_tier_ids": [
       "space_optical"
     ],
@@ -78,7 +78,7 @@
     "reward_research_points": 75,
     "unlocks": [],
     "speculative": false,
-    "flavor": "",
+    "flavor": "Start this when you load the deep-field scene \u2014 not while stuck on solar-system only.",
     "min_confidence": 0.5
   },
   {
@@ -98,7 +98,7 @@
     ],
     "scene_scope": "any",
     "completion_goal": 5,
-    "reward_research_points": 75,
+    "reward_research_points": 90,
     "unlocks": [],
     "speculative": false,
     "flavor": "",
@@ -120,7 +120,7 @@
     ],
     "scene_scope": "deep_field",
     "completion_goal": 2,
-    "reward_research_points": 100,
+    "reward_research_points": 125,
     "unlocks": [],
     "speculative": false,
     "flavor": "",
@@ -165,8 +165,8 @@
       "void"
     ],
     "scene_scope": "deep_field",
-    "completion_goal": 8,
-    "reward_research_points": 225,
+    "completion_goal": 3,
+    "reward_research_points": 300,
     "unlocks": [],
     "speculative": false,
     "flavor": "",
@@ -189,8 +189,8 @@
       "galaxy"
     ],
     "scene_scope": "deep_field",
-    "completion_goal": 5,
-    "reward_research_points": 300,
+    "completion_goal": 4,
+    "reward_research_points": 400,
     "unlocks": [],
     "speculative": false,
     "flavor": "",

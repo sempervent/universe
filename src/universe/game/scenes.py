@@ -20,6 +20,8 @@ DEFAULT_ACTIVE_SCENE_ID = "solar-system"
 class ObservationSceneClass(str, Enum):
     SOLAR_SYSTEM = "solar_system"
     DEEP_FIELD = "deep_field"
+    RADIO_SURVEY = "radio_survey"
+    HIGH_ENERGY = "high_energy"
     SPECULATIVE = "speculative"
     CUSTOM = "custom"
 
@@ -117,6 +119,93 @@ def get_default_scene_catalog() -> list[ObservationSceneDefinition]:
             order_index=1,
             speculative=False,
         ),
+        ObservationSceneDefinition(
+            id="radio-cmb-survey",
+            name="Radio CMB Survey",
+            description=(
+                "Radio/microwave sky: CMB shell, radio-loud galaxies, jet quasars, "
+                "and compact pulsars."
+            ),
+            scene_class=ObservationSceneClass.RADIO_SURVEY.value,
+            generator_name="radio-cmb-survey",
+            default_seed="radio-first-light",
+            default_output_path="data/generated/radio-cmb-survey",
+            unlock_tier_id="radio",
+            recommended_survey_ids=["radio_sky_survey"],
+            recommended_signal_modes=[SignalType.RADIO, SignalType.MICROWAVE],
+            teaching_summary=(
+                "Radio and microwave instruments reveal the cold CMB background and "
+                "energetic jets invisible in ordinary light."
+            ),
+            scale_description="~35 cMpc schematic radio survey layout.",
+            order_index=2,
+        ),
+        ObservationSceneDefinition(
+            id="stellar-remnant-field",
+            name="Stellar Remnant Field",
+            description=(
+                "High-energy compact sources: magnetars, black-hole candidates, "
+                "and accretion-powered quasars."
+            ),
+            scene_class=ObservationSceneClass.HIGH_ENERGY.value,
+            generator_name="stellar-remnant-field",
+            default_seed="high-energy-remnants",
+            default_output_path="data/generated/stellar-remnant-field",
+            unlock_tier_id="xray_gamma",
+            recommended_survey_ids=["compact_object_search"],
+            recommended_signal_modes=[SignalType.XRAY, SignalType.GAMMA_RAY, SignalType.RADIO],
+            teaching_summary=(
+                "High-energy astronomy reveals compact remnants and accretion violence."
+            ),
+            scale_description="~28 cMpc field emphasizing X-ray/gamma detections.",
+            order_index=3,
+        ),
+        ObservationSceneDefinition(
+            id="cosmic-web-map",
+            name="Cosmic Web Map",
+            description=(
+                "Large-scale structure: filaments, voids, and galaxies as weak-lensing "
+                "and dark-matter tracers."
+            ),
+            scene_class=ObservationSceneClass.DEEP_FIELD.value,
+            generator_name="cosmic-web-map",
+            default_seed="invisible-architecture",
+            default_output_path="data/generated/cosmic-web-map",
+            unlock_tier_id="dark_matter_mapper",
+            recommended_survey_ids=[
+                "cosmic_web_mapping",
+                "dark_matter_inference_program",
+            ],
+            recommended_signal_modes=[
+                SignalType.WEAK_LENSING,
+                SignalType.DARK_MATTER_INFERENCE,
+            ],
+            teaching_summary=(
+                "Weak lensing and galaxy distributions infer invisible mass structure."
+            ),
+            scale_description="~60 cMpc region with embedded cosmic web graph.",
+            order_index=4,
+        ),
+        ObservationSceneDefinition(
+            id="now-scope-anomaly-field",
+            name="Now-Scope Anomaly Field",
+            description=(
+                "Speculative endgame field with fictional causality-independent anomalies."
+            ),
+            scene_class=ObservationSceneClass.SPECULATIVE.value,
+            generator_name="now-scope-anomaly-field",
+            default_seed="impossible-now",
+            default_output_path="data/generated/now-scope-anomaly-field",
+            unlock_tier_id="now_scope",
+            recommended_survey_ids=["now_scope_first_light"],
+            recommended_signal_modes=[SignalType.SPECULATIVE_NOW_SIGNAL],
+            teaching_summary=(
+                "Fictional now-scope observation beyond light-cone constraints."
+            ),
+            scale_description="Speculative schematic field — not real astrophysics.",
+            order_index=5,
+            speculative=True,
+        ),
     ]
     return _CATALOG_CACHE
 
@@ -179,12 +268,15 @@ def ensure_campaign_state(state: ResearchState) -> ResearchState:
 
 def update_scene_unlocks(state: ResearchState) -> tuple[ResearchState, list[str]]:
     """Refresh unlock flags; return (new_state, newly_unlocked_scene_ids)."""
-    campaign = default_campaign_state(state)
+    if not state.campaign.scenes:
+        state = state.model_copy(update={"campaign": default_campaign_state(state)})
+
     newly: list[str] = []
     new_scenes: dict[str, CampaignSceneState] = {}
+    persist = state.campaign.scenes
 
     for defn in get_default_scene_catalog():
-        prev = campaign.scenes.get(defn.id) or CampaignSceneState(scene_id=defn.id)
+        prev = persist.get(defn.id) or CampaignSceneState(scene_id=defn.id)
         should_unlock = _scene_unlocked(defn, state)
         unlocked = prev.unlocked or should_unlock
         first_unlock_turn = prev.first_unlocked_turn
@@ -203,14 +295,14 @@ def update_scene_unlocks(state: ResearchState) -> tuple[ResearchState, list[str]
             metadata=dict(prev.metadata),
         )
 
-    active = campaign.active_scene_id
+    active = state.campaign.active_scene_id
     if active not in new_scenes or not new_scenes[active].unlocked:
         active = DEFAULT_ACTIVE_SCENE_ID
 
     new_campaign = CampaignState(
         active_scene_id=active,
         scenes=new_scenes,
-        completed_scene_ids=list(campaign.completed_scene_ids),
+        completed_scene_ids=list(state.campaign.completed_scene_ids),
     )
     return state.model_copy(update={"campaign": new_campaign}), newly
 
@@ -223,6 +315,32 @@ def available_scenes(state: ResearchState) -> list[ObservationSceneDefinition]:
         if cs and cs.unlocked:
             out.append(defn)
     return out
+
+
+def campaign_advance_active_scene(
+    state: ResearchState,
+    *,
+    newly_unlocked: list[str] | None = None,
+    max_order_index: int | None = None,
+) -> tuple[ResearchState, str | None, str | None]:
+    """Switch when a newly unlocked scene lies ahead in catalog order."""
+    if not newly_unlocked:
+        return state, None, None
+    catalog = {d.id: d for d in get_default_scene_catalog()}
+    active_id = state.campaign.active_scene_id
+    active_idx = catalog[active_id].order_index if active_id in catalog else -1
+    candidates = [
+        catalog[sid]
+        for sid in newly_unlocked
+        if sid in catalog and catalog[sid].order_index > active_idx
+    ]
+    if max_order_index is not None:
+        candidates = [d for d in candidates if d.order_index <= max_order_index]
+    if not candidates:
+        return state, None, None
+    defn = max(candidates, key=lambda d: d.order_index)
+    new_state, msg = set_active_scene(state, defn.id)
+    return new_state, msg, defn.id
 
 
 def recommended_next_scene(state: ResearchState) -> ObservationSceneDefinition | None:
