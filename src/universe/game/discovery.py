@@ -544,6 +544,8 @@ def observe_scene(
 
     consecutive = 0 if total_rp > 0 else state.consecutive_no_rp_turns + 1
 
+    from universe.game.transients import update_transient_event_states
+
     new_state = state.model_copy(
         update={
             "research_points": state.research_points + total_rp,
@@ -567,6 +569,8 @@ def observe_scene(
             scene_id=scene.id,
         )
         survey_messages.extend(msgs)
+
+    new_state = update_transient_event_states(new_state)
 
     # Evaluate milestones (auto-claim rewards).
     new_state, achieved = evaluate_milestones(new_state)

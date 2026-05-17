@@ -24,8 +24,9 @@ class TestMilestoneCatalogue:
         assert m.speculative is True
 
     def test_other_milestones_not_speculative(self):
+        speculative_ids = {"now_scope_first_light", "first_speculative_transient"}
         for m in get_default_milestones():
-            if m.id != "now_scope_first_light":
+            if m.id not in speculative_ids:
                 assert m.speculative is False, f"{m.id} unexpectedly speculative"
 
     def test_unknown_milestone_returns_none(self):

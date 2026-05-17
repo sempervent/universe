@@ -57,7 +57,7 @@ See [Research Entity](research-entity.md) for details.
 | **Header** | Research Entity name, active telescope, RP, signal count, discovery count |
 | **Left: Controls** | Observe/Survey buttons, scrollable object list |
 | **Center: Sky Map** | 2D radial projection — Earth/observatory at center, objects by distance |
-| **Right: Tabs** | Object detail · Tech tree · **Surveys** · **Milestones** |
+| **Right: Tabs** | Object detail · Tech tree · **Surveys** · **Milestones** · **Transients** |
 | **Bottom: Log** | Timestamped discovery log |
 
 ### Surveys tab
@@ -74,6 +74,13 @@ Splits achievements into "Achieved" and "Remaining". Each card shows the
 description, reward, and a SPECULATIVE badge where applicable. Achieved
 milestones display the auto-claimed reward; remaining ones display the
 target reward.
+
+### Transients tab
+
+Lists active, upcoming, expired, and observed events for the loaded scene.
+**Observe Event** is enabled when tier and signal requirements are met.
+Transient RP is awarded once per event (unless marked repeatable). See
+[transient-events.md](transient-events.md).
 
 ## Sky map
 

@@ -137,6 +137,8 @@ uv run universe game playtest \
 
 See [docs/balance-playtesting.md](docs/balance-playtesting.md). Campaign ladder findings appear in **§7f Campaign Ladder Analysis** when matrix runs include `campaign_instrument_ladder`.
 
+Transient turn-window events: [docs/transient-events.md](docs/transient-events.md).
+
 ## Quickstart — Telescope UI (browser game)
 
 ```bash

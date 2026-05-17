@@ -187,6 +187,31 @@ def get_default_milestones() -> list[Milestone]:
             condition_type="speculative",
             speculative=True,
         ),
+        Milestone(
+            id="first_transient_event",
+            name="First Transient Event",
+            description="Observe a time-domain transient event.",
+            reward_research_points=20,
+            condition_type="transient",
+        ),
+        Milestone(
+            id="first_multi_messenger_event",
+            name="Multi-Messenger Transient",
+            description=(
+                "Observe a transient using multiple signal channels or during "
+                "multi-messenger operations."
+            ),
+            reward_research_points=90,
+            condition_type="transient",
+        ),
+        Milestone(
+            id="first_speculative_transient",
+            name="Speculative Transient",
+            description="Observe a fictional now-scope transient event.",
+            reward_research_points=200,
+            condition_type="transient",
+            speculative=True,
+        ),
     ]
 
 
@@ -280,6 +305,28 @@ def _milestone_condition(milestone_id: str, state) -> bool:
         return any(
             d.first_detected_tier == "now_scope" for d in state.discoveries.values()
         )
+    if milestone_id == "first_transient_event":
+        return any(ts.reward_claimed for ts in state.transient_events.values())
+    if milestone_id == "first_multi_messenger_event":
+        from universe.game.transients import get_transient_event
+
+        for eid, ts in state.transient_events.items():
+            if not ts.reward_claimed:
+                continue
+            defn = get_transient_event(eid)
+            if defn is None:
+                continue
+            if len(defn.required_signal_types) >= 2:
+                return True
+            if defn.event_type in (
+                "gravitational_wave",
+                "neutrino_burst",
+            ) and "multi_messenger" in state.unlocked_tiers:
+                return True
+        return False
+    if milestone_id == "first_speculative_transient":
+        ts = state.transient_events.get("causality_echo_001")
+        return ts is not None and ts.reward_claimed
     return False
 
 

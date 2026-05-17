@@ -14,6 +14,7 @@ const SkyRendererS := preload("res://scripts/SkyRenderer.gd")
 const TelescopeConsoleS := preload("res://scripts/TelescopeConsole.gd")
 const TelescopeCameraS := preload("res://scripts/TelescopeCamera.gd")
 const EntityModifiersS := preload("res://scripts/EntityModifiers.gd")
+const TransientEngineS := preload("res://scripts/TransientEngine.gd")
 
 var scene_data: Dictionary = {}
 var state: Dictionary = {}
@@ -24,6 +25,7 @@ var requirements_map: Dictionary = {}
 var surveys_map: Dictionary = {}
 var entity_modifiers: Array = []
 var scene_catalog: Array = []
+var transient_defs: Array = []
 
 var _scene_path: String = ""
 var _state_path: String = ""
@@ -100,6 +102,7 @@ func _setup_console() -> void:
 	console.action_campaign_set_active.connect(_on_campaign_set_active_scene)
 	console.action_campaign_load_and_set.connect(_on_campaign_load_and_set_scene)
 	console.action_campaign_refresh.connect(refresh_campaign_ui)
+	console.action_observe_transient.connect(_on_observe_transient)
 
 
 func _load_signal_modes_json() -> Array:
@@ -124,6 +127,7 @@ func _load_static_data() -> void:
 	entity_modifiers = EntityModifiersS.load_table(FilePaths.ENTITY_MODIFIERS_PATH)
 	surveys_map = SurveyEngineS.by_id(surveys)
 	scene_catalog = _load_scene_catalog()
+	transient_defs = TransientEngineS.load_definitions(FilePaths.TRANSIENTS_PATH)
 	if tech_tree.is_empty():
 		_log("[!] frontends/godot/data/ is empty — run `universe game export-godot-data`.", "#ff8888")
 
@@ -278,6 +282,7 @@ func _apply_camera_framing() -> void:
 
 
 func _render_all() -> void:
+	state = TransientEngineS.update_states(state, transient_defs)
 	sky.render_scene(scene_data, state, requirements_map)
 	sky.apply_visual_state(
 		state,
@@ -301,6 +306,7 @@ func _render_all() -> void:
 	console.render_tech_tree(state, tech_tree, entity_modifiers)
 	console.render_surveys(state, surveys, surveys_map, entity_modifiers)
 	console.render_milestones(state, milestones, entity_modifiers)
+	console.render_transients(state, transient_defs, scene_data, tech_tree)
 	_apply_environment_for_signal(console.get_signal_mode())
 
 
@@ -405,6 +411,21 @@ func _on_object_picked(object_id: String) -> void:
 		console.is_labels_visible(),
 	)
 	console.render_detail(state, requirements_map)
+
+
+func _on_observe_transient(event_id: String) -> void:
+	var defs_map := TransientEngineS.by_id(transient_defs)
+	if not defs_map.has(event_id):
+		_log("Unknown transient: %s" % event_id, "#ff8888")
+		return
+	var defn: Dictionary = defs_map[event_id]
+	var res := TransientEngineS.observe(scene_data, state, defn, tech_tree)
+	if not bool(res.get("ok", false)):
+		_log(str(res.get("message", "Cannot observe.")), "#ff8888")
+		return
+	state = res["state"]
+	_log(str(res.get("message", "Observed.")), "#aaffaa")
+	_post_observe()
 
 
 func _on_observe() -> void:

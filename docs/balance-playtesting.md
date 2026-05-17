@@ -117,6 +117,10 @@ Also: `scene_visit_sequence`, `tier_unlock_context` (tier → turn, active scene
 
 Alignment validation: `universe.game.campaign_balance.run_campaign_alignment_checks()` (used in report §7g and `tests/test_campaign_balance.py`).
 
+### Transient events (§7i)
+
+Ladder runs record `transient_events_observed`, `transient_events_missed`, `transient_rp_total`, and speculative transient flags. Autoplay observes active transients after each scene pass when requirements are met.
+
 ### Warning examples
 
 - **Stuck** — no RP change for more than five consecutive turns.

@@ -151,5 +151,32 @@
     "condition_type": "speculative",
     "hidden": false,
     "speculative": true
+  },
+  {
+    "id": "first_transient_event",
+    "name": "First Transient Event",
+    "description": "Observe a time-domain transient event.",
+    "reward_research_points": 20,
+    "condition_type": "transient",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "first_multi_messenger_event",
+    "name": "Multi-Messenger Transient",
+    "description": "Observe a transient using multiple signal channels or during multi-messenger operations.",
+    "reward_research_points": 90,
+    "condition_type": "transient",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "first_speculative_transient",
+    "name": "Speculative Transient",
+    "description": "Observe a fictional now-scope transient event.",
+    "reward_research_points": 200,
+    "condition_type": "transient",
+    "hidden": false,
+    "speculative": true
   }
 ]

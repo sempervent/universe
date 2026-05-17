@@ -39,6 +39,7 @@ def export_telescope_ui(
         get_all_entity_modifiers,
     )
     from universe.game.scenes import campaign_catalog_bundle
+    from universe.game.transients import transients_for_export
 
     scene_json = scene.model_dump_json()
     state_json = state.model_dump_json()
@@ -51,6 +52,7 @@ def export_telescope_ui(
 
     modifiers_json = json.dumps([m.model_dump() for m in get_all_entity_modifiers()])
     catalog_json = json.dumps(campaign_catalog_bundle(state))
+    transients_json = json.dumps(transients_for_export())
 
     html = _TELESCOPE_HTML.replace("__SCENE_DATA__", scene_json)
     html = html.replace("__STATE_DATA__", state_json)
@@ -62,6 +64,7 @@ def export_telescope_ui(
     html = html.replace("__SURVEYS_DATA__", surveys_json)
     html = html.replace("__MILESTONES_DATA__", milestones_json)
     html = html.replace("__SCENE_CATALOG__", catalog_json)
+    html = html.replace("__TRANSIENTS_DATA__", transients_json)
     html = html.replace("__SCENE_NAME__", scene.name)
 
     out.write_text(html, encoding="utf-8")
@@ -236,8 +239,10 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
       <div class="tab-btn" data-tab="surveys">Surveys</div>
       <div class="tab-btn" data-tab="milestones">Milestones</div>
       <div class="tab-btn" data-tab="campaign">Campaign</div>
+      <div class="tab-btn" data-tab="transients">Transients</div>
     </div>
     <div id="tab-detail" class="tab-content active"></div>
+    <div id="tab-transients" class="tab-content"></div>
     <div id="tab-tech" class="tab-content"></div>
     <div id="tab-surveys" class="tab-content"></div>
     <div id="tab-milestones" class="tab-content"></div>
@@ -259,6 +264,7 @@ const RANDOM_NAMES = __RANDOM_NAMES__;
 const SURVEYS = __SURVEYS_DATA__;
 const MILESTONES = __MILESTONES_DATA__;
 const SCENE_CATALOG = __SCENE_CATALOG__;
+const TRANSIENTS = __TRANSIENTS_DATA__;
 const ENTITY_TYPES = __ENTITY_TYPES__;
 const ENTITY_MODIFIERS = __ENTITY_MODIFIERS__;
 
@@ -1349,6 +1355,82 @@ document.getElementById('btn-survey').onclick = doSurvey;
 document.getElementById('btn-reset').onclick = doReset;
 document.getElementById('btn-export').onclick = doExport;
 
+function transientState(eid) {
+  if (!state.transient_events) state.transient_events = {};
+  if (!state.transient_events[eid]) {
+    state.transient_events[eid] = { event_id: eid, active: false, discovered: false, observed_turns: [], expired: false, reward_claimed: false };
+  }
+  return state.transient_events[eid];
+}
+
+function refreshTransientFlags() {
+  const turn = state.turn || 0;
+  TRANSIENTS.forEach(defn => {
+    const ts = transientState(defn.id);
+    const start = defn.start_turn || 1;
+    const end = start + (defn.duration_turns || 1);
+    ts.active = turn >= start && turn < end;
+    ts.expired = turn >= end;
+  });
+}
+
+function canObserveTransient(defn) {
+  refreshTransientFlags();
+  if (SCENE.id !== defn.scene_id) return false;
+  const ts = transientState(defn.id);
+  if (ts.expired || !ts.active || ts.reward_claimed) return false;
+  const minTier = defn.minimum_telescope_tier || 'naked_eye';
+  const minIdx = (TECH_TREE.find(t => t.id === minTier) || { tier_index: -1 }).tier_index;
+  const activeIdx = (TECH_TREE.find(t => t.id === state.active_telescope_tier) || { tier_index: -1 }).tier_index;
+  if (!(state.unlocked_tiers || []).includes(minTier) && activeIdx < minIdx) return false;
+  const req = defn.required_signal_types || [];
+  if (req.length && !req.some(s => (state.known_signal_types || []).includes(s))) return false;
+  return true;
+}
+
+function observeTransient(defn) {
+  if (!canObserveTransient(defn)) return;
+  const ts = transientState(defn.id);
+  const rp = defn.reward_research_points || 0;
+  state.research_points = (state.research_points || 0) + rp;
+  ts.discovered = true;
+  ts.reward_claimed = true;
+  ts.first_observed_turn = ts.first_observed_turn ?? state.turn;
+  ts.observed_turns = ts.observed_turns || [];
+  ts.observed_turns.push(state.turn);
+  const spec = defn.speculative ? ' [SPECULATIVE]' : '';
+  addLog(`Transient: ${defn.name}${spec} — +${rp} RP`, 'log-discovery');
+  saveState();
+  renderAll();
+}
+
+function renderTransients() {
+  const el = document.getElementById('tab-transients');
+  if (!el) return;
+  refreshTransientFlags();
+  let h = '<div class="panel-title">Transient Events</div>';
+  const sceneEvents = TRANSIENTS.filter(d => d.scene_id === SCENE.id);
+  if (!sceneEvents.length) {
+    el.innerHTML = h + '<p class="dim">No catalog events for this scene.</p>';
+    return;
+  }
+  sceneEvents.forEach(defn => {
+    const ts = transientState(defn.id);
+    let status = 'upcoming';
+    if (ts.expired) status = ts.reward_claimed ? 'expired (observed)' : 'expired';
+    else if (ts.active) status = ts.reward_claimed ? 'active (done)' : 'active';
+    const spec = defn.speculative ? ' <span class="spec">SPECULATIVE</span>' : '';
+    h += `<div class="card"><strong>${defn.name}</strong>${spec}<br>`;
+    h += `<span class="dim">${status} · turns ${defn.start_turn}–${defn.start_turn + defn.duration_turns - 1} · +${defn.reward_research_points} RP</span><br>`;
+    h += `<span class="dim">${defn.description}</span>`;
+    if (canObserveTransient(defn)) {
+      h += `<br><button class="btn-small" onclick="observeTransient(TRANSIENTS.find(x=>x.id==='${defn.id}'))">Observe Event</button>`;
+    }
+    h += '</div>';
+  });
+  el.innerHTML = h;
+}
+
 function renderAll() {
   renderHeader();
   renderObjectList();
@@ -1357,6 +1439,7 @@ function renderAll() {
   renderSurveys();
   renderMilestones();
   renderCampaign();
+  renderTransients();
   renderSkyMap();
   showGuidanceHints();
 }

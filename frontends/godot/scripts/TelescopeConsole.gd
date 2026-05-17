@@ -5,6 +5,7 @@ extends CanvasLayer
 const _EntityModifiers := preload("res://scripts/EntityModifiers.gd")
 const _SceneLoader := preload("res://scripts/SceneLoader.gd")
 const _SurveyEngine := preload("res://scripts/SurveyEngine.gd")
+const _TransientEngine := preload("res://scripts/TransientEngine.gd")
 
 signal action_observe()
 signal action_survey()
@@ -22,6 +23,7 @@ signal action_campaign_load_scene(scene_id: String)
 signal action_campaign_set_active(scene_id: String)
 signal action_campaign_load_and_set(scene_id: String)
 signal action_campaign_refresh()
+signal action_observe_transient(event_id: String)
 
 const PANEL_BG := Color(0.04, 0.05, 0.08, 0.92)
 const TEXT_DIM := Color(0.65, 0.7, 0.85)
@@ -38,6 +40,9 @@ var _tab_container: TabContainer
 var _tech_text: RichTextLabel
 var _surveys_text: RichTextLabel
 var _milestones_text: RichTextLabel
+var _transients_text: RichTextLabel
+var _btn_observe_transient: Button
+var _selected_transient_id: String = ""
 var _campaign_summary: Label
 var _campaign_scene_list: ItemList
 var _campaign_detail: RichTextLabel
@@ -458,6 +463,27 @@ func _build_right_panel() -> void:
 	_milestones_text.scroll_active = true
 	_milestones_text.name = "Milestones"
 	_tab_container.add_child(_milestones_text)
+
+	var tr_scroll := ScrollContainer.new()
+	tr_scroll.name = "Transients"
+	tr_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tr_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tab_container.add_child(tr_scroll)
+	var tr_outer := VBoxContainer.new()
+	tr_outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tr_outer.add_theme_constant_override("separation", 6)
+	tr_scroll.add_child(tr_outer)
+	_transients_text = RichTextLabel.new()
+	_transients_text.bbcode_enabled = true
+	_transients_text.scroll_active = true
+	_transients_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_transients_text.custom_minimum_size = Vector2(0, 280)
+	tr_outer.add_child(_transients_text)
+	_btn_observe_transient = Button.new()
+	_btn_observe_transient.text = "Observe Event"
+	_btn_observe_transient.disabled = true
+	_btn_observe_transient.pressed.connect(_on_observe_transient_pressed)
+	tr_outer.add_child(_btn_observe_transient)
 
 	_build_campaign_tab()
 
@@ -980,6 +1006,92 @@ func render_milestones(state: Dictionary, milestones: Array, modifiers_table: Ar
 		lines.append("[color=#7788aa]○ %s[/color]%s — %s" % [m["name"], spec2, ms])
 		lines.append("   [color=#5566aa]%s[/color]" % m.get("description", ""))
 	_milestones_text.text = "\n".join(lines)
+
+
+func render_transients(
+	state: Dictionary,
+	defs: Array,
+	scene: Dictionary,
+	tech_tree: Array,
+) -> void:
+	var lines := PackedStringArray()
+	var sid: String = str(scene.get("id", ""))
+	var turn: int = int(state.get("turn", 0))
+	state = _TransientEngine.update_states(state, defs)
+	var events: Dictionary = state.get("transient_events", {})
+	lines.append("[b]Scene %s — turn %d[/b]" % [sid, turn])
+	var active := []
+	var upcoming := []
+	var expired := []
+	var observed := []
+	for d in defs:
+		if not (d is Dictionary):
+			continue
+		if str(d.get("scene_id", "")) != sid:
+			continue
+		var eid: String = str(d.get("id", ""))
+		var ts: Dictionary = events.get(eid, {})
+		if bool(ts.get("reward_claimed", false)):
+			observed.append(d)
+		elif bool(ts.get("expired", false)):
+			expired.append(d)
+		elif bool(ts.get("active", false)):
+			active.append(d)
+		else:
+			upcoming.append(d)
+	for label_text in ["Active", "Upcoming", "Expired", "Observed"]:
+		var bucket: Array = []
+		match label_text:
+			"Active":
+				bucket = active
+			"Upcoming":
+				bucket = upcoming
+			"Expired":
+				bucket = expired
+			"Observed":
+				bucket = observed
+		if bucket.is_empty():
+			continue
+		lines.append("")
+		lines.append("[b]%s[/b]" % label_text)
+		for d in bucket:
+			var spec := " [color=#cc8855][SPECULATIVE][/color]" if d.get("speculative", false) else ""
+			var chk := _TransientEngine.is_observable(scene, state, d, tech_tree)
+			var ok := bool(chk.get("ok", false))
+			var mark := "[color=#88ff99]●[/color]" if ok else "[color=#7788aa]○[/color]"
+			lines.append(
+				"%s %s%s — +%d RP (t%d–%d)" % [
+					mark,
+					d.get("name", d.get("id", "")),
+					spec,
+					int(d.get("reward_research_points", 0)),
+					int(d.get("start_turn", 0)),
+					int(d.get("start_turn", 0)) + int(d.get("duration_turns", 0)) - 1,
+				]
+			)
+			lines.append(
+				"   [color=#5566aa]tier %s · signals %s[/color]" % [
+					d.get("minimum_telescope_tier", "?"),
+					str(d.get("required_signal_types", [])),
+				]
+			)
+			if not ok and label_text == "Active":
+				lines.append("   [color=#aa7766]%s[/color]" % chk.get("reason", ""))
+	_transients_text.text = "\n".join(lines)
+	_selected_transient_id = ""
+	_btn_observe_transient.disabled = true
+	for d in active:
+		var eid: String = str(d.get("id", ""))
+		var chk2 := _TransientEngine.is_observable(scene, state, d, tech_tree)
+		if bool(chk2.get("ok", false)):
+			_selected_transient_id = eid
+			_btn_observe_transient.disabled = false
+			break
+
+
+func _on_observe_transient_pressed() -> void:
+	if _selected_transient_id != "":
+		action_observe_transient.emit(_selected_transient_id)
 
 
 func add_log(text: String, color: String = "#bbcce0") -> void:

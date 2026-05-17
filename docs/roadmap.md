@@ -88,6 +88,13 @@
 - **Campaign / Observing Program** tab: full `scene_catalog.json` list, lock/file status, load / set active, CLI generate hints.
 - Mirrored campaign unlock rules in `GameState.gd`; Python remains canonical.
 
+## Phase 3.10: Transient observation events ✅
+
+- Deterministic turn-window catalog (`transients.py`) with eight events across campaign scenes.
+- CLI: `game transients`, `game observe-transient`; playtest + balance report §7i.
+- HTML Transients tab; Godot `transient_events.json` + `TransientEngine.gd`.
+- Docs: [transient-events.md](transient-events.md).
+
 ## Phase 3.9: Campaign ladder balance tuning ✅
 
 - Per-scene observation RP caps (`observation_rewards.py`) fix Scene 001 funding spikes.

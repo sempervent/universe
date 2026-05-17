@@ -428,6 +428,45 @@ def _parse_survey_id(message: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def _autoplay_observe_transients(
+    scene: SceneRegion,
+    state: ResearchState,
+    events: list[PlaytestEvent],
+    entity_type: str,
+    *,
+    before_state: ResearchState | None = None,
+) -> ResearchState:
+    from universe.game.transients import (
+        available_transient_events_for_scene,
+        observe_transient_event,
+        update_transient_event_states,
+    )
+
+    state = update_transient_event_states(state)
+    for defn in available_transient_events_for_scene(scene, state):
+        prev = state
+        state, result, err = observe_transient_event(scene, state, defn.id)
+        if result is None:
+            continue
+        _record_event(
+            events,
+            state_before=prev,
+            state_after=state,
+            turn=state.turn,
+            event_type="transient_observed",
+            entity_type=entity_type,
+            message=result.message,
+            object_id=f"__transient__:{defn.id}",
+            object_type="transient_event",
+            metadata={
+                "event_id": defn.id,
+                "reward_rp": result.research_points,
+                "speculative": defn.speculative,
+            },
+        )
+    return state
+
+
 def _cheapest_upgrade(state: ResearchState):
     upgrades = available_upgrades(state)
     if not upgrades:
@@ -494,6 +533,9 @@ def _greedy_turn(
 
     before_observe = state
     state, results = observe_scene(scene, state)
+    state = _autoplay_observe_transients(
+        scene, state, events, entity_type, before_state=before_observe
+    )
 
     for r in results:
         if r.object_id == "__survey__":
@@ -1230,6 +1272,38 @@ def run_playtest(
     summary["reward_cap_count"] = len(reward_cap_events)
     summary["now_scope_reached"] = "now_scope" in state.unlocked_tiers
 
+    from universe.game.transients import get_default_transient_events, update_transient_event_states
+
+    state = update_transient_event_states(state)
+    transient_observed = [
+        eid for eid, ts in state.transient_events.items() if ts.reward_claimed
+    ]
+    transient_missed = [
+        d.id
+        for d in get_default_transient_events()
+        if state.transient_events.get(d.id) is not None
+        and state.transient_events[d.id].expired
+        and not state.transient_events[d.id].reward_claimed
+    ]
+    transient_rp = sum(
+        e.metadata.get("reward_rp", 0)
+        for e in events
+        if e.event_type == "transient_observed"
+    )
+    first_transient_turn: int | None = None
+    for e in events:
+        if e.event_type == "transient_observed":
+            first_transient_turn = e.turn
+            break
+    speculative_transient = any(
+        e.metadata.get("speculative") for e in events if e.event_type == "transient_observed"
+    )
+    summary["transient_events_observed"] = transient_observed
+    summary["transient_events_missed"] = transient_missed
+    summary["transient_rp_total"] = transient_rp
+    summary["first_transient_observed_turn"] = first_transient_turn
+    summary["speculative_transient_observed"] = speculative_transient
+
     return PlaytestRun(
         id=make_run_id(scenario.id, entity_type, seed),
         seed=seed,
@@ -1612,6 +1686,29 @@ def generate_balance_report(runs: list[PlaytestRun]) -> str:
     alignment_checks = run_campaign_alignment_checks()
     lines.extend(["## 7g. Campaign Scene / Survey Alignment", ""])
     lines.append(alignment_summary_markdown(alignment_checks))
+    lines.append("")
+
+    lines.extend(["## 7i. Transient Events", ""])
+    ladder_transient = [
+        r for r in runs if r.scenario_id == "campaign_instrument_ladder"
+    ]
+    if ladder_transient:
+        for r in ladder_transient:
+            obs = r.summary.get("transient_events_observed") or []
+            miss = r.summary.get("transient_events_missed") or []
+            lines.append(
+                f"- `{r.entity_type}`: observed={obs}, missed={len(miss)}, "
+                f"transient RP={r.summary.get('transient_rp_total', 0)}, "
+                f"first@t{r.summary.get('first_transient_observed_turn', '—')}, "
+                f"speculative={r.summary.get('speculative_transient_observed', False)}"
+            )
+        never_obs = [r for r in ladder_transient if not r.summary.get("transient_events_observed")]
+        if never_obs:
+            balance_flags.append(
+                "Campaign ladder: some entity types observed no transient events."
+            )
+    else:
+        lines.append("- _(no ladder runs for transient summary)_")
     lines.append("")
 
     lines.extend(["## 8. Warnings", ""])

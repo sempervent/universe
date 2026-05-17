@@ -81,3 +81,5 @@ Unreal remains a **cinematic renderer** for specific exported scenes (currently 
 | `campaign_instrument_ladder` | `campaign_ordered` | Full six-scene ladder pacing |
 
 Balance reports include campaign transition timing (§7e) and **Campaign Ladder Analysis** (§7f) when ladder runs are in the matrix input. See [balance-playtesting.md](balance-playtesting.md).
+
+**Transient events** fire on fixed turn windows per scene (solar flares, magnetar bursts, speculative now-scope echoes). List with `game transients`; observe with `game observe-transient`. See [transient-events.md](transient-events.md).

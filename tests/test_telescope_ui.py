@@ -164,6 +164,19 @@ class TestSurveyMilestoneEmbedding:
             assert "First Light Survey" in content
             assert "const SURVEYS" in content
 
+    def test_html_embeds_transient_data(self):
+        from universe.game.telescope_ui import export_telescope_ui
+        from universe.procedural.registry import generate_scene_by_id
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "ui.html"
+            scene = generate_scene_by_id("solar-system", seed="t")
+            export_telescope_ui(scene, out_path=out)
+            text = out.read_text()
+            assert "TRANSIENTS" in text or "__TRANSIENTS_DATA__" in text
+            assert "Transient Events" in text
+            assert "solar_flare_001" in text
+
     def test_html_embeds_milestone_data(self):
         scene = _solar_scene()
         with tempfile.TemporaryDirectory() as tmp:

@@ -37,6 +37,10 @@ Some **entity backgrounds** (e.g. AI Research Bureau) add a small **confidence b
 
 One `observe_scene` pass may discover many objects, but **discovery RP** from primary results is capped per scene (`observation_rewards.py`). Discoveries still update `ResearchState.discoveries`; capped awards show `(capped)` in messages. Survey and milestone RP are not capped.
 
+## Transient events
+
+Turn-window events (`transients.py`) award **separate** bounded RP when observed with the right tier and signals. See [transient-events.md](transient-events.md).
+
 ## Research points
 
 Points are awarded based on:

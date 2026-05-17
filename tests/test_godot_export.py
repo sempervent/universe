@@ -33,6 +33,7 @@ class TestExportGodotData:
                 "manifest.json",
                 "entity_modifiers.json",
                 "scene_catalog.json",
+                "transient_events.json",
             ]:
                 p = out / fname
                 assert p.exists(), f"missing {fname}"
@@ -166,6 +167,7 @@ class TestGodotScaffold:
             "TelescopeCamera.gd",
             "TelescopeConsole.gd",
             "EntityModifiers.gd",
+            "TransientEngine.gd",
         ]:
             assert (GODOT_ROOT / "scripts" / name).exists(), f"missing scripts/{name}"
 
@@ -209,6 +211,15 @@ class TestGodotScaffold:
         assert "action_signal_mode_changed" in text
         assert "OptionButton" in text
         assert "setup_signal_modes" in text
+
+    def test_transient_ui_in_godot_scripts(self):
+        console = (GODOT_ROOT / "scripts" / "TelescopeConsole.gd").read_text(encoding="utf-8")
+        assert "render_transients" in console
+        assert 'name = "Transients"' in console or 'name = &"Transients"' in console
+        assert "Observe Event" in console
+        main_gd = (GODOT_ROOT / "scripts" / "Main.gd").read_text(encoding="utf-8")
+        assert "TransientEngine" in main_gd
+        assert "_on_observe_transient" in main_gd
 
     def test_data_bundle_committed(self):
         for fname in [

@@ -138,6 +138,18 @@ class CampaignState(BaseModel):
     completed_scene_ids: list[str] = Field(default_factory=list)
 
 
+class TransientEventState(BaseModel):
+    """Per-player record for a catalog transient event."""
+
+    event_id: str
+    active: bool = False
+    discovered: bool = False
+    observed_turns: list[int] = Field(default_factory=list)
+    first_observed_turn: int | None = None
+    expired: bool = False
+    reward_claimed: bool = False
+
+
 # ---------------------------------------------------------------------------
 # Player state
 # ---------------------------------------------------------------------------
@@ -170,6 +182,9 @@ class ResearchState(BaseModel):
 
     # ── Campaign / multi-scene progression ───────────────────────────
     campaign: CampaignState = Field(default_factory=_empty_campaign)
+
+    # ── Turn-window transient events ─────────────────────────────────
+    transient_events: dict[str, TransientEventState] = Field(default_factory=dict)
 
     @property
     def discovered_object_ids(self) -> set[str]:

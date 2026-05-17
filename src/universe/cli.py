@@ -188,8 +188,12 @@ def game_init(out: str, starting_rp: int, name: str | None, etype: str, motto: s
     )
     from universe.game.scenes import ensure_campaign_state
 
-    state = ensure_campaign_state(
-        ResearchState(research_points=starting_rp, research_entity=entity)
+    from universe.game.transients import ensure_transient_states
+
+    state = ensure_transient_states(
+        ensure_campaign_state(
+            ResearchState(research_points=starting_rp, research_entity=entity)
+        )
     )
     out_path = Path(out)
     _save_game_state(state, out_path)
@@ -505,6 +509,123 @@ def game_status(state_path: str) -> None:
     else:
         click.echo("    (No hints — generate a scene and observe to refresh.)")
 
+    from universe.game.transients import format_transient_status_lines
+
+    active_sid = state.campaign.active_scene_id
+    for candidate in (
+        Path(f"data/generated/{active_sid}/scene.json"),
+        Path("data/generated/solar-system/scene.json"),
+    ):
+        if candidate.exists():
+            scene_data = json.loads(candidate.read_text())
+            scene_data.pop("_units", None)
+            scene = SceneRegion.model_validate(scene_data)
+            tlines = format_transient_status_lines(scene, state)
+            if tlines:
+                click.echo("")
+                click.echo("  Transient events (active scene):")
+                for line in tlines:
+                    click.echo(f"    {line}")
+            break
+
+
+@game.command("transients")
+@click.option("--state", "state_path", required=True, type=click.Path(exists=True))
+@click.option("--scene", "scene_id", default=None, help="Campaign scene id filter.")
+@click.option("--all-scenes", is_flag=True, help="List events for all catalog scenes.")
+@click.option("--active-only", is_flag=True, help="Show only currently active events.")
+def game_transients(
+    state_path: str,
+    scene_id: str | None,
+    all_scenes: bool,
+    active_only: bool,
+) -> None:
+    """List transient observation events (upcoming, active, expired, observed)."""
+    from universe.game.models import ResearchState
+    from universe.game.transients import (
+        active_transient_events,
+        format_transient_status_lines,
+        get_default_transient_events,
+        update_transient_event_states,
+    )
+
+    state = ResearchState.model_validate_json(Path(state_path).read_text())
+    state = update_transient_event_states(state)
+    sid = scene_id or (None if all_scenes else state.campaign.active_scene_id)
+
+    click.echo(f"=== Transient Events (turn {state.turn}) ===")
+    if sid:
+        click.echo(f"  Scene filter: {sid}")
+    elif all_scenes:
+        click.echo("  All catalog scenes")
+
+    scene = None
+    if sid and not all_scenes:
+        candidate = Path(f"data/generated/{sid}/scene.json")
+        if candidate.exists():
+            scene_data = json.loads(candidate.read_text())
+            scene_data.pop("_units", None)
+            scene = SceneRegion.model_validate(scene_data)
+
+    if active_only and sid:
+        for defn in active_transient_events(state, sid):
+            spec = " [SPECULATIVE]" if defn.speculative else ""
+            click.echo(
+                f"  ACTIVE {defn.name} ({defn.id}){spec} — "
+                f"+{defn.reward_research_points} RP; tier ≥ {defn.minimum_telescope_tier}"
+            )
+        return
+
+    for line in format_transient_status_lines(
+        scene, state, scene_id=sid, all_scenes=all_scenes
+    ):
+        click.echo(line)
+
+    if not all_scenes and sid:
+        missed = [
+            d.id
+            for d in get_default_transient_events()
+            if d.scene_id == sid
+            and state.transient_events[d.id].expired
+            and not state.transient_events[d.id].reward_claimed
+        ]
+        if missed:
+            click.echo("")
+            click.echo("  Missed in this scene:")
+            for mid in missed:
+                click.echo(f"    - {mid}")
+
+
+@game.command("observe-transient")
+@click.option("--scene", "scene_path", required=True, type=click.Path(exists=True))
+@click.option("--state", "state_path", required=True, type=click.Path(exists=True))
+@click.option("--event", "event_id", required=True, help="Transient event id.")
+@click.option("--out", default=None, help="Output path for updated state.")
+def game_observe_transient(
+    scene_path: str,
+    state_path: str,
+    event_id: str,
+    out: str | None,
+) -> None:
+    """Observe an active transient event in the current scene."""
+    from universe.game.models import ResearchState
+    from universe.game.transients import observe_transient_event
+
+    scene_data = json.loads(Path(scene_path).read_text())
+    scene_data.pop("_units", None)
+    scene = SceneRegion.model_validate(scene_data)
+    state = ResearchState.model_validate_json(Path(state_path).read_text())
+
+    new_state, result, err = observe_transient_event(scene, state, event_id)
+    if result is None:
+        click.echo(f"Failed: {err}")
+        raise SystemExit(1)
+
+    click.echo(result.message)
+    out_path = Path(out) if out else Path(state_path)
+    out_path.write_text(new_state.model_dump_json(indent=2), encoding="utf-8")
+    click.echo(f"State saved: {out_path}")
+
 
 @game.command("surveys")
 @click.option("--state", "state_path", required=True, type=click.Path(exists=True))
@@ -663,6 +784,7 @@ def game_export_godot_data(out: str) -> None:
     from universe.game.scenes import catalog_for_export
     from universe.game.surveys import get_default_survey_programs
     from universe.game.tech_tree import get_default_tech_tree
+    from universe.game.transients import transients_for_export
 
     out_dir = Path(out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -679,8 +801,9 @@ def game_export_godot_data(out: str) -> None:
         "random_entity_names.json": RANDOM_ENTITY_NAMES,
         "entity_modifiers.json": [m.model_dump(mode="json") for m in get_all_entity_modifiers()],
         "scene_catalog.json": catalog_for_export(),
+        "transient_events.json": transients_for_export(),
     }
-    manifest = {"files": list(bundle.keys()), "schema_version": "0.3.0"}
+    manifest = {"files": list(bundle.keys()), "schema_version": "0.4.0"}
     bundle["manifest.json"] = manifest
 
     written: list[Path] = []
@@ -869,6 +992,12 @@ def game_report(scene_path: str, state_path: str, out: str) -> None:
             spec = " ⚠ speculative" if m.speculative else ""
             lines.append(f"- **{m.name}**{spec} — {m.description}")
         lines.append("")
+
+    from universe.game.transients import format_transient_status_lines
+
+    tlines = format_transient_status_lines(scene, state)
+    if tlines:
+        lines += ["## Transient Events", ""] + tlines + [""]
 
     from universe.game.guidance import get_guidance_hints
 

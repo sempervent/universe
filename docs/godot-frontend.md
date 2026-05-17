@@ -74,6 +74,11 @@ uv run universe game export-godot-data --out frontends/godot/data
 | `TelescopeCamera.gd` | Orbital camera: drag orbit, wheel zoom, middle / Shift+drag pan, F/R, tap-to-pick ray. |
 | `SkyRenderer.gd` | Builds meshes + `Area3D` pick spheres, `Label3D` names, discovery materials, signal-mode emphasis. |
 | `TelescopeConsole.gd` | CanvasLayer UI: signal mode dropdown + help, labels toggle, reset/export, tabs, log. |
+| `TransientEngine.gd` | Turn-window transient events (mirrors `universe.game.transients`). |
+
+## Transient events
+
+`transient_events.json` is exported with the data bundle. The **Transients** tab lists events for the loaded scene; **Observe Event** applies local RP when requirements match (Python CLI remains canonical for scripted playtests).
 
 ## What is mirrored vs canonical
 

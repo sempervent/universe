@@ -69,6 +69,10 @@ gated behind the speculative now-scope.
 
 See `docs/milestones.md` for the full catalog.
 
+## Transient events
+
+Eight deterministic turn-window events encourage revisiting campaign scenes with the right instruments. Rewards are modest and separate from per-pass discovery RP caps. See [transient-events.md](transient-events.md).
+
 ## Scientific vs speculative content
 
 | Tier range | Status |
