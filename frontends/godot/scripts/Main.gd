@@ -15,6 +15,7 @@ const TelescopeConsoleS := preload("res://scripts/TelescopeConsole.gd")
 const TelescopeCameraS := preload("res://scripts/TelescopeCamera.gd")
 const EntityModifiersS := preload("res://scripts/EntityModifiers.gd")
 const TransientEngineS := preload("res://scripts/TransientEngine.gd")
+const ObjectiveEngineS := preload("res://scripts/ObjectiveEngine.gd")
 
 var scene_data: Dictionary = {}
 var state: Dictionary = {}
@@ -26,6 +27,7 @@ var surveys_map: Dictionary = {}
 var entity_modifiers: Array = []
 var scene_catalog: Array = []
 var transient_defs: Array = []
+var objective_defs: Array = []
 
 var _scene_path: String = ""
 var _state_path: String = ""
@@ -128,6 +130,7 @@ func _load_static_data() -> void:
 	surveys_map = SurveyEngineS.by_id(surveys)
 	scene_catalog = _load_scene_catalog()
 	transient_defs = TransientEngineS.load_definitions(FilePaths.TRANSIENTS_PATH)
+	objective_defs = ObjectiveEngineS.load_definitions(FilePaths.OBJECTIVES_PATH)
 	if tech_tree.is_empty():
 		_log("[!] frontends/godot/data/ is empty — run `universe game export-godot-data`.", "#ff8888")
 
@@ -307,6 +310,7 @@ func _render_all() -> void:
 	console.render_surveys(state, surveys, surveys_map, entity_modifiers)
 	console.render_milestones(state, milestones, entity_modifiers)
 	console.render_transients(state, transient_defs, scene_data, tech_tree)
+	console.render_objectives(state, objective_defs)
 	_apply_environment_for_signal(console.get_signal_mode())
 
 
@@ -507,8 +511,19 @@ func _post_observe() -> void:
 		var spec := " [SPECULATIVE]" if m.get("speculative", false) else ""
 		var rp: int = int(m.get("_awarded_rp", m.get("reward_research_points", 0)))
 		_log("Milestone: %s%s — +%d RP" % [m["name"], spec, rp], "#ffcc66")
+	_evaluate_objectives()
 	refresh_campaign_unlocks()
 	_render_all()
+
+
+func _evaluate_objectives() -> void:
+	var res := ObjectiveEngineS.evaluate(state, scene_data, objective_defs)
+	state = res["state"]
+	for o in res["completed"]:
+		_log(
+			"Objective: %s — +%d RP" % [str(o.get("title", "")), int(o.get("reward_research_points", 0))],
+			"#88ccff",
+		)
 
 
 func _on_start_survey(sid: String) -> void:

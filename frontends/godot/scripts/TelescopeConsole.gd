@@ -41,6 +41,7 @@ var _tech_text: RichTextLabel
 var _surveys_text: RichTextLabel
 var _milestones_text: RichTextLabel
 var _transients_text: RichTextLabel
+var _objectives_text: RichTextLabel
 var _btn_observe_transient: Button
 var _selected_transient_id: String = ""
 var _campaign_summary: Label
@@ -484,6 +485,12 @@ func _build_right_panel() -> void:
 	_btn_observe_transient.disabled = true
 	_btn_observe_transient.pressed.connect(_on_observe_transient_pressed)
 	tr_outer.add_child(_btn_observe_transient)
+
+	_objectives_text = RichTextLabel.new()
+	_objectives_text.bbcode_enabled = true
+	_objectives_text.scroll_active = true
+	_objectives_text.name = "Objectives"
+	_tab_container.add_child(_objectives_text)
 
 	_build_campaign_tab()
 
@@ -1092,6 +1099,32 @@ func render_transients(
 func _on_observe_transient_pressed() -> void:
 	if _selected_transient_id != "":
 		action_observe_transient.emit(_selected_transient_id)
+
+
+func render_objectives(state: Dictionary, defs: Array) -> void:
+	var lines := PackedStringArray()
+	lines.append("[b]Tutorial objectives[/b]")
+	var active_ids: Array = state.get("active_objective_ids", [])
+	var objectives: Dictionary = state.get("objectives", {})
+	for d in defs:
+		if not (d is Dictionary):
+			continue
+		var oid: String = str(d.get("id", ""))
+		if oid not in active_ids:
+			continue
+		lines.append("[color=#ffcc66]→ %s[/color]" % d.get("title", oid))
+		lines.append("   [color=#7788aa]%s[/color]" % d.get("hint", d.get("description", "")))
+		break
+	var done := 0
+	for d in defs:
+		if not (d is Dictionary):
+			continue
+		var prog: Dictionary = objectives.get(str(d.get("id", "")), {})
+		if str(prog.get("status", "")) == "completed":
+			done += 1
+	lines.append("")
+	lines.append("[color=#7788aa]%d / %d completed[/color]" % [done, defs.size()])
+	_objectives_text.text = "\n".join(lines)
 
 
 func add_log(text: String, color: String = "#bbcce0") -> void:

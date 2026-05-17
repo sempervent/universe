@@ -1,0 +1,190 @@
+[
+  {
+    "id": "name_research_entity",
+    "title": "Name Your Research Entity",
+    "description": "Give your institute a proper name and charter.",
+    "tutorial_step": 1,
+    "trigger_type": "entity_named",
+    "required_scene_id": null,
+    "required_tier_id": null,
+    "required_survey_id": null,
+    "required_milestone_id": null,
+    "required_transient_event_id": null,
+    "reward_research_points": 5,
+    "next_objective_ids": [
+      "observe_local_sky"
+    ],
+    "hint": "Use the naming panel in the UI or `universe game init --name \"...\"`.",
+    "suggested_command": "uv run universe game init --name \"Your Institute\" --entity-type private_institute --out data/generated/game-state.json",
+    "hidden": false
+  },
+  {
+    "id": "observe_local_sky",
+    "title": "Observe the Local Sky",
+    "description": "Make your first discovery in the solar-system scene.",
+    "tutorial_step": 2,
+    "trigger_type": "solar_discovery",
+    "required_scene_id": "solar-system",
+    "required_tier_id": null,
+    "required_survey_id": null,
+    "required_milestone_id": null,
+    "required_transient_event_id": null,
+    "reward_research_points": 5,
+    "next_objective_ids": [
+      "complete_first_light_survey"
+    ],
+    "hint": "Load the solar-system scene and run Observe or Survey.",
+    "suggested_command": "uv run universe game observe --scene data/generated/solar-system/scene.json --state data/generated/game-state.json",
+    "hidden": false
+  },
+  {
+    "id": "complete_first_light_survey",
+    "title": "Complete First Light Survey",
+    "description": "Finish the local sky survey program.",
+    "tutorial_step": 3,
+    "trigger_type": "survey_complete",
+    "required_scene_id": null,
+    "required_tier_id": null,
+    "required_survey_id": "local_sky_survey",
+    "required_milestone_id": null,
+    "required_transient_event_id": null,
+    "reward_research_points": 10,
+    "next_objective_ids": [
+      "unlock_ground_optical"
+    ],
+    "hint": "Start local_sky_survey, then observe solar targets until complete.",
+    "suggested_command": "uv run universe game start-survey --survey local_sky_survey --state data/generated/game-state.json",
+    "hidden": false
+  },
+  {
+    "id": "unlock_ground_optical",
+    "title": "Unlock Ground Optical",
+    "description": "Upgrade to the ground optical telescope tier.",
+    "tutorial_step": 4,
+    "trigger_type": "tier_unlocked",
+    "required_scene_id": null,
+    "required_tier_id": "ground_optical",
+    "required_survey_id": null,
+    "required_milestone_id": null,
+    "required_transient_event_id": null,
+    "reward_research_points": 5,
+    "next_objective_ids": [
+      "observe_first_transient"
+    ],
+    "hint": "Earn RP from discoveries, then unlock ground_optical in the tech tree.",
+    "suggested_command": "uv run universe game upgrade --tier ground_optical --state data/generated/game-state.json",
+    "hidden": false
+  },
+  {
+    "id": "observe_first_transient",
+    "title": "Observe a Transient Event",
+    "description": "Catch a time-domain event while it is active.",
+    "tutorial_step": 5,
+    "trigger_type": "transient_observed",
+    "required_scene_id": "solar-system",
+    "required_tier_id": null,
+    "required_survey_id": null,
+    "required_milestone_id": null,
+    "required_transient_event_id": null,
+    "reward_research_points": 10,
+    "next_objective_ids": [
+      "unlock_space_optical"
+    ],
+    "hint": "Check Transients during turns 2\u20135 for a solar flare in solar-system.",
+    "suggested_command": "uv run universe game observe-transient --event solar_flare_001 --scene data/generated/solar-system/scene.json --state data/generated/game-state.json",
+    "hidden": false
+  },
+  {
+    "id": "unlock_space_optical",
+    "title": "Reach Space Optical",
+    "description": "Unlock the space optical telescope tier.",
+    "tutorial_step": 6,
+    "trigger_type": "tier_unlocked",
+    "required_scene_id": null,
+    "required_tier_id": "space_optical",
+    "required_survey_id": null,
+    "required_milestone_id": null,
+    "required_transient_event_id": null,
+    "reward_research_points": 10,
+    "next_objective_ids": [
+      "unlock_scene_001"
+    ],
+    "hint": "Progress through improved_ground, then unlock space_optical.",
+    "suggested_command": "uv run universe game upgrade --tier space_optical --state data/generated/game-state.json",
+    "hidden": false
+  },
+  {
+    "id": "unlock_scene_001",
+    "title": "Unlock Scene 001",
+    "description": "Unlock the deep-field campaign scene.",
+    "tutorial_step": 7,
+    "trigger_type": "campaign_scene_unlocked",
+    "required_scene_id": "scene-001",
+    "required_tier_id": null,
+    "required_survey_id": null,
+    "required_milestone_id": null,
+    "required_transient_event_id": null,
+    "reward_research_points": 10,
+    "next_objective_ids": [
+      "switch_to_scene_001"
+    ],
+    "hint": "space_optical unlocks scene-001 in the campaign catalog.",
+    "suggested_command": "",
+    "hidden": false
+  },
+  {
+    "id": "switch_to_scene_001",
+    "title": "Switch to Scene 001",
+    "description": "Set Scene 001 as the active campaign scene.",
+    "tutorial_step": 8,
+    "trigger_type": "campaign_scene_active",
+    "required_scene_id": "scene-001",
+    "required_tier_id": null,
+    "required_survey_id": null,
+    "required_milestone_id": null,
+    "required_transient_event_id": null,
+    "reward_research_points": 10,
+    "next_objective_ids": [
+      "start_deep_field_survey"
+    ],
+    "hint": "Generate scene-001 if needed, then set it active.",
+    "suggested_command": "uv run universe game generate-scene --scene scene-001 && uv run universe game set-scene --scene scene-001 --state data/generated/game-state.json",
+    "hidden": false
+  },
+  {
+    "id": "start_deep_field_survey",
+    "title": "Start Deep Field Survey",
+    "description": "Begin or complete the deep field survey program.",
+    "tutorial_step": 9,
+    "trigger_type": "survey_active_or_complete",
+    "required_scene_id": null,
+    "required_tier_id": null,
+    "required_survey_id": "deep_field_survey",
+    "required_milestone_id": null,
+    "required_transient_event_id": null,
+    "reward_research_points": 15,
+    "next_objective_ids": [
+      "first_deep_field_discovery"
+    ],
+    "hint": "Start deep_field_survey while observing Scene 001.",
+    "suggested_command": "uv run universe game start-survey --survey deep_field_survey --state data/generated/game-state.json",
+    "hidden": false
+  },
+  {
+    "id": "first_deep_field_discovery",
+    "title": "First Deep-Field Discovery",
+    "description": "Detect a galaxy, quasar, or Lyman-alpha blob in the deep field.",
+    "tutorial_step": 10,
+    "trigger_type": "deep_field_discovery",
+    "required_scene_id": "scene-001",
+    "required_tier_id": null,
+    "required_survey_id": null,
+    "required_milestone_id": null,
+    "required_transient_event_id": null,
+    "reward_research_points": 25,
+    "next_objective_ids": [],
+    "hint": "Observe Scene 001 with space_optical (or better) until a deep target registers.",
+    "suggested_command": "uv run universe game observe --scene data/generated/scene-001/scene.json --state data/generated/game-state.json",
+    "hidden": false
+  }
+]

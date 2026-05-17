@@ -73,6 +73,10 @@ See `docs/milestones.md` for the full catalog.
 
 Eight deterministic turn-window events encourage revisiting campaign scenes with the right instruments. Rewards are modest and separate from per-pass discovery RP caps. See [transient-events.md](transient-events.md).
 
+## Tutorial objectives
+
+A ten-step first-run chain teaches naming, solar observation, surveys, tiers, transients, and Scene 001. See [tutorial-objectives.md](tutorial-objectives.md).
+
 ## Scientific vs speculative content
 
 | Tier range | Status |

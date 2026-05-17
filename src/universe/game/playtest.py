@@ -494,8 +494,11 @@ def _greedy_turn(
     tier_unlock_turns: dict[str, int],
     survey_complete_turns: dict[str, int],
     milestone_turns: dict[str, int],
+    objective_turns: dict[str, int] | None = None,
     **kwargs: Any,
 ) -> ResearchState:
+    if objective_turns is None:
+        objective_turns = {}
     turn = state.turn + 1
     scene_id = scene.id
 
@@ -537,6 +540,12 @@ def _greedy_turn(
         scene, state, events, entity_type, before_state=before_observe
     )
 
+    from universe.game.objectives import ObjectiveStatus
+
+    for oid, prog in state.objectives.items():
+        if prog.status == ObjectiveStatus.COMPLETED and oid not in objective_turns:
+            objective_turns[oid] = prog.completed_turn if prog.completed_turn is not None else state.turn
+
     for r in results:
         if r.object_id == "__survey__":
             sid = _parse_survey_id(r.message) or state.active_survey_id
@@ -564,6 +573,17 @@ def _greedy_turn(
                     message=r.message,
                     survey_id=sid,
                 )
+            continue
+        if r.object_id == "__objective__":
+            oid = None
+            from universe.game.objectives import get_default_objectives
+
+            for obj in get_default_objectives():
+                if obj.title in r.message:
+                    oid = obj.id
+                    break
+            if oid and oid not in objective_turns:
+                objective_turns[oid] = state.turn
             continue
         if r.object_id == "__milestone__":
             mid = None
@@ -708,9 +728,12 @@ def _campaign_greedy_turn(
     survey_complete_turns: dict[str, int],
     milestone_turns: dict[str, int],
     scene_unlock_turns: dict[str, int],
+    objective_turns: dict[str, int] | None = None,
     scenario: PlaytestScenario,
     seed: str = "local-sky",
 ) -> ResearchState:
+    if objective_turns is None:
+        objective_turns = {}
     before = state
     state, newly_unlocked = update_scene_unlocks(state)
     for sid in newly_unlocked:
@@ -750,7 +773,7 @@ def _campaign_greedy_turn(
     if scene.id != scene_id:
         scene = load_scene(scene_id, scene_seed_for(scenario, scene_id, seed))
 
-    return _greedy_turn(
+    state = _greedy_turn(
         state,
         scene,
         events,
@@ -758,7 +781,68 @@ def _campaign_greedy_turn(
         tier_unlock_turns=tier_unlock_turns,
         survey_complete_turns=survey_complete_turns,
         milestone_turns=milestone_turns,
+        objective_turns=objective_turns,
     )
+    return _campaign_advance_after_turn(
+        state,
+        events,
+        entity_type,
+        scenario,
+        scene_unlock_turns=scene_unlock_turns,
+        max_order_index=scenario.campaign_advance_max_order,
+    )
+
+
+def _campaign_advance_after_turn(
+    state: ResearchState,
+    events: list[PlaytestEvent],
+    entity_type: str,
+    scenario: PlaytestScenario,
+    *,
+    scene_unlock_turns: dict[str, int],
+    max_order_index: int | None,
+) -> ResearchState:
+    """Advance campaign scene when unlocks land during observe/upgrade."""
+    before = state
+    state, newly_unlocked = update_scene_unlocks(state)
+    for sid in newly_unlocked:
+        if sid not in scene_unlock_turns:
+            scene_unlock_turns[sid] = state.turn
+        _record_event(
+            events,
+            state_before=before,
+            state_after=state,
+            turn=state.turn,
+            event_type="scene_unlocked",
+            entity_type=entity_type,
+            message=f"Campaign scene unlocked: {sid}",
+            metadata={"scene_id": sid},
+        )
+    if scenario.use_campaign_progression:
+        before_switch = state
+        state, msg, new_sid = campaign_advance_active_scene(
+            state,
+            newly_unlocked=newly_unlocked,
+            max_order_index=max_order_index,
+        )
+        if new_sid is None and state.campaign.active_scene_id == "solar-system":
+            cs = state.campaign.scenes.get("scene-001")
+            if cs and cs.unlocked:
+                state, msg = set_active_scene(state, "scene-001")
+                if state.campaign.active_scene_id == "scene-001":
+                    new_sid = "scene-001"
+        if new_sid and msg:
+            _record_event(
+                events,
+                state_before=before_switch,
+                state_after=state,
+                turn=state.turn,
+                event_type="active_scene_changed",
+                entity_type=entity_type,
+                message=msg,
+                metadata={"scene_id": new_sid},
+            )
+    return state
 
 
 def _campaign_ordered_turn(
@@ -772,10 +856,13 @@ def _campaign_ordered_turn(
     milestone_turns: dict[str, int],
     scene_unlock_turns: dict[str, int],
     scene_turns: dict[str, int],
+    objective_turns: dict[str, int] | None = None,
     scenario: PlaytestScenario,
     seed: str = "local-sky",
 ) -> ResearchState:
     """Campaign autoplay: catalog order, advance when scene is mostly exhausted."""
+    if objective_turns is None:
+        objective_turns = {}
     before = state
     state, newly_unlocked = update_scene_unlocks(state)
     for sid in newly_unlocked:
@@ -844,10 +931,18 @@ def _campaign_ordered_turn(
         tier_unlock_turns=tier_unlock_turns,
         survey_complete_turns=survey_complete_turns,
         milestone_turns=milestone_turns,
+        objective_turns=objective_turns,
         preferred_survey_id=survey_pref,
     )
     scene_turns[scene_id] = turns_in_scene + 1
-    return state
+    return _campaign_advance_after_turn(
+        state,
+        events,
+        entity_type,
+        scenario,
+        scene_unlock_turns=scene_unlock_turns,
+        max_order_index=scenario.campaign_advance_max_order,
+    )
 
 
 def _apply_new_events_to_tracker(
@@ -1082,6 +1177,7 @@ def run_playtest(
     tier_unlock_turns: dict[str, int] = {tid: 0 for tid in state.unlocked_tiers}
     survey_complete_turns: dict[str, int] = {}
     milestone_turns: dict[str, int] = {}
+    objective_turns: dict[str, int] = {}
     rp_by_turn: list[int] = [state.research_points]
     warnings: list[str] = []
     stuck_turns = 0
@@ -1122,6 +1218,7 @@ def run_playtest(
             tier_unlock_turns=tier_unlock_turns,
             survey_complete_turns=survey_complete_turns,
             milestone_turns=milestone_turns,
+            objective_turns=objective_turns,
             scenario=scenario,
             seed=seed,
             scene_unlock_turns=scene_unlock_turns,
@@ -1304,6 +1401,43 @@ def run_playtest(
     summary["first_transient_observed_turn"] = first_transient_turn
     summary["speculative_transient_observed"] = speculative_transient
 
+    from universe.game.objectives import (
+        ObjectiveStatus,
+        get_default_objectives,
+        get_objective,
+        tutorial_completed_count,
+    )
+
+    tutorial_done = tutorial_completed_count(state)
+    tutorial_total = len(get_default_objectives())
+    final_prog = state.objectives.get("first_deep_field_discovery")
+    tutorial_completed_turn = (
+        final_prog.completed_turn
+        if final_prog and final_prog.status == ObjectiveStatus.COMPLETED
+        else None
+    )
+    objective_rp = sum(
+        get_objective(oid).reward_research_points
+        for oid in objective_turns
+        if get_objective(oid) is not None
+    )
+    summary["tutorial_objectives_completed_count"] = tutorial_done
+    summary["tutorial_completed_turn"] = tutorial_completed_turn
+    summary["objective_completion_turns"] = dict(objective_turns)
+    summary["objective_rewards_total"] = objective_rp
+    if (
+        scenario.id == "campaign_instrument_ladder"
+        and tutorial_done < tutorial_total
+        and state.turn >= 30
+    ):
+        warnings.append(
+            f"Tutorial: only {tutorial_done}/{tutorial_total} objectives completed by turn {state.turn}."
+        )
+    if objective_rp > 200:
+        warnings.append(
+            f"Tutorial objective RP total {objective_rp} may be high relative to early tiers."
+        )
+
     return PlaytestRun(
         id=make_run_id(scenario.id, entity_type, seed),
         seed=seed,
@@ -1472,6 +1606,12 @@ def generate_balance_report(runs: list[PlaytestRun]) -> str:
     all_warnings: list[str] = []
     balance_flags: list[str] = []
 
+    def _coerce_final_state(run: PlaytestRun) -> ResearchState:
+        fs = run.final_state
+        if isinstance(fs, dict):
+            return ResearchState.model_validate(fs)
+        return fs
+
     for run in runs:
         by_scenario.setdefault(run.scenario_id, []).append(run)
         by_entity.setdefault(run.entity_type, []).append(run)
@@ -1613,9 +1753,10 @@ def generate_balance_report(runs: list[PlaytestRun]) -> str:
         for r in campaign_runs:
             s = r.summary
             su = s.get("scene_unlock_turn") or {}
+            fs = _coerce_final_state(r)
             visited = [
                 sid
-                for sid, cs in (r.final_state.campaign.scenes or {}).items()
+                for sid, cs in (fs.campaign.scenes or {}).items()
                 if cs.visited
             ]
             lines.append(
@@ -1642,7 +1783,7 @@ def generate_balance_report(runs: list[PlaytestRun]) -> str:
                 if len(
                     [
                         sid
-                        for sid, cs in r.final_state.campaign.scenes.items()
+                        for sid, cs in _coerce_final_state(r).campaign.scenes.items()
                         if cs.visited
                     ]
                 )
@@ -1709,6 +1850,39 @@ def generate_balance_report(runs: list[PlaytestRun]) -> str:
             )
     else:
         lines.append("- _(no ladder runs for transient summary)_")
+    lines.append("")
+
+    from universe.game.objectives import get_default_objectives as _tutorial_objectives
+
+    lines.extend(["## 7j. First-Run Tutorial Objectives", ""])
+    if ladder_transient:
+        turns_list: list[int] = []
+        total = len(_tutorial_objectives())
+        for r in ladder_transient:
+            done = r.summary.get("tutorial_objectives_completed_count", 0)
+            t_turn = r.summary.get("tutorial_completed_turn")
+            lines.append(
+                f"- `{r.entity_type}`: {done}/{total} objectives, "
+                f"tutorial complete@t{t_turn or '—'}, "
+                f"objective RP={r.summary.get('objective_rewards_total', 0)}"
+            )
+            if t_turn is not None:
+                turns_list.append(int(t_turn))
+        if turns_list:
+            med = sorted(turns_list)[len(turns_list) // 2]
+            lines.append(f"- Median tutorial completion turn: {med}")
+        incomplete = [
+            r
+            for r in ladder_transient
+            if (r.summary.get("tutorial_objectives_completed_count") or 0) < total
+        ]
+        if incomplete:
+            balance_flags.append(
+                f"Tutorial: {len(incomplete)}/{len(ladder_transient)} ladder runs "
+                "did not finish the objective chain."
+            )
+    else:
+        lines.append("- _(no ladder runs for tutorial summary)_")
     lines.append("")
 
     lines.extend(["## 8. Warnings", ""])

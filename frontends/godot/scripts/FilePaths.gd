@@ -19,6 +19,7 @@ const ENTITY_TYPES_PATH := "res://data/entity_types.json"
 const RANDOM_NAMES_PATH := "res://data/random_entity_names.json"
 const SCENE_CATALOG_PATH := "res://data/scene_catalog.json"
 const TRANSIENTS_PATH := "res://data/transient_events.json"
+const OBJECTIVES_PATH := "res://data/objectives.json"
 
 # ── Generated runtime data (lives in the parent repo) ──────────────────
 const DEFAULT_SCENE_RELATIVE := "../../data/generated/solar-system/scene.json"

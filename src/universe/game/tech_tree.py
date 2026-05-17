@@ -341,4 +341,7 @@ def unlock_tier(state: ResearchState, tier_id: str) -> tuple[ResearchState, str]
             "known_signal_types": sorted(new_signals),
         }
     )
+    from universe.game.scenes import update_scene_unlocks
+
+    new_state, _ = update_scene_unlocks(new_state)
     return new_state, f"Unlocked '{tier.name}'. Active telescope set to {tier_id}."

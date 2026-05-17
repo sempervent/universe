@@ -139,6 +139,8 @@ See [docs/balance-playtesting.md](docs/balance-playtesting.md). Campaign ladder 
 
 Transient turn-window events: [docs/transient-events.md](docs/transient-events.md).
 
+First-run tutorial objectives: [docs/tutorial-objectives.md](docs/tutorial-objectives.md).
+
 ## Quickstart — Telescope UI (browser game)
 
 ```bash

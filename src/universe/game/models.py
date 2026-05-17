@@ -150,6 +150,22 @@ class TransientEventState(BaseModel):
     reward_claimed: bool = False
 
 
+class ObjectiveStatus(str, Enum):
+    LOCKED = "locked"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+
+
+class ObjectiveProgress(BaseModel):
+    """Per-player tutorial objective progress."""
+
+    objective_id: str
+    status: ObjectiveStatus = ObjectiveStatus.LOCKED
+    completed_turn: int | None = None
+    reward_claimed: bool = False
+    metadata: dict = Field(default_factory=dict)
+
+
 # ---------------------------------------------------------------------------
 # Player state
 # ---------------------------------------------------------------------------
@@ -185,6 +201,10 @@ class ResearchState(BaseModel):
 
     # ── Turn-window transient events ─────────────────────────────────
     transient_events: dict[str, TransientEventState] = Field(default_factory=dict)
+
+    # ── First-run tutorial objectives ──────────────────────────────────
+    objectives: dict[str, ObjectiveProgress] = Field(default_factory=dict)
+    active_objective_ids: list[str] = Field(default_factory=list)
 
     @property
     def discovered_object_ids(self) -> set[str]:

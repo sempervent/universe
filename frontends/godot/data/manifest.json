@@ -9,7 +9,8 @@
     "random_entity_names.json",
     "entity_modifiers.json",
     "scene_catalog.json",
-    "transient_events.json"
+    "transient_events.json",
+    "objectives.json"
   ],
-  "schema_version": "0.4.0"
+  "schema_version": "0.5.0"
 }

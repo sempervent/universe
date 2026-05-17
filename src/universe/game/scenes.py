@@ -428,6 +428,9 @@ def set_active_scene(
 
     if prev_active == scene_id:
         return new_state, f"Active scene already set to '{defn.name}'."
+    from universe.game.objectives import evaluate_objectives
+
+    new_state, _ = evaluate_objectives(new_state)
     return new_state, f"Active campaign scene: {defn.name} ({scene_id})."
 
 

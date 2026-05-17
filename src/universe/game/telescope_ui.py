@@ -39,6 +39,7 @@ def export_telescope_ui(
         get_all_entity_modifiers,
     )
     from universe.game.scenes import campaign_catalog_bundle
+    from universe.game.objectives import objectives_for_export
     from universe.game.transients import transients_for_export
 
     scene_json = scene.model_dump_json()
@@ -53,6 +54,7 @@ def export_telescope_ui(
     modifiers_json = json.dumps([m.model_dump() for m in get_all_entity_modifiers()])
     catalog_json = json.dumps(campaign_catalog_bundle(state))
     transients_json = json.dumps(transients_for_export())
+    objectives_json = json.dumps(objectives_for_export())
 
     html = _TELESCOPE_HTML.replace("__SCENE_DATA__", scene_json)
     html = html.replace("__STATE_DATA__", state_json)
@@ -65,6 +67,7 @@ def export_telescope_ui(
     html = html.replace("__MILESTONES_DATA__", milestones_json)
     html = html.replace("__SCENE_CATALOG__", catalog_json)
     html = html.replace("__TRANSIENTS_DATA__", transients_json)
+    html = html.replace("__OBJECTIVES_DATA__", objectives_json)
     html = html.replace("__SCENE_NAME__", scene.name)
 
     out.write_text(html, encoding="utf-8")
@@ -219,6 +222,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
     <span class="hstat" id="h-signals"></span>
     <span class="hstat" id="h-discoveries"></span>
     <span class="hstat" id="h-background" style="max-width:280px;white-space:normal;line-height:1.3"></span>
+    <span class="hstat" id="h-objective" style="max-width:320px;white-space:normal;line-height:1.3;color:var(--gold)"></span>
     <button id="btn-export" title="Export game state as JSON">Export</button>
     <button id="btn-reset" title="Reset all progress">Reset</button>
   </div>
@@ -240,9 +244,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
       <div class="tab-btn" data-tab="milestones">Milestones</div>
       <div class="tab-btn" data-tab="campaign">Campaign</div>
       <div class="tab-btn" data-tab="transients">Transients</div>
+      <div class="tab-btn" data-tab="objectives">Objectives</div>
     </div>
     <div id="tab-detail" class="tab-content active"></div>
     <div id="tab-transients" class="tab-content"></div>
+    <div id="tab-objectives" class="tab-content"></div>
     <div id="tab-tech" class="tab-content"></div>
     <div id="tab-surveys" class="tab-content"></div>
     <div id="tab-milestones" class="tab-content"></div>
@@ -265,6 +271,7 @@ const SURVEYS = __SURVEYS_DATA__;
 const MILESTONES = __MILESTONES_DATA__;
 const SCENE_CATALOG = __SCENE_CATALOG__;
 const TRANSIENTS = __TRANSIENTS_DATA__;
+const OBJECTIVES = __OBJECTIVES_DATA__;
 const ENTITY_TYPES = __ENTITY_TYPES__;
 const ENTITY_MODIFIERS = __ENTITY_MODIFIERS__;
 
@@ -503,10 +510,86 @@ const surveyMap = {};
 SURVEYS.forEach(s => surveyMap[s.id] = s);
 
 function ensureSurveyMilestoneFields() {
+  ensureObjectiveFields();
   if (!state.survey_progress) state.survey_progress = {};
   if (!state.milestones) state.milestones = {};
   if (state.active_survey_id === undefined) state.active_survey_id = null;
   if (typeof state.turn !== 'number') state.turn = 0;
+}
+
+function ensureObjectiveFields() {
+  if (!state.objectives) state.objectives = {};
+  if (!state.active_objective_ids) state.active_objective_ids = [];
+  if (!state.campaign) state.campaign = { active_scene_id: 'solar-system', scenes: {} };
+  if (!state.transient_events) state.transient_events = {};
+}
+
+const SOLAR_DISCOVERY_TYPES_JS = new Set(['star','planet','moon','asteroid','comet','observatory']);
+const DEEP_FIELD_TYPES_JS = new Set(['galaxy','quasar','lyman_alpha_blob']);
+
+function objectiveCondition(defn) {
+  const tt = defn.trigger_type;
+  if (tt === 'entity_named') return !needsNaming();
+  if (tt === 'solar_discovery') return Object.values(state.discoveries).some(d => SOLAR_DISCOVERY_TYPES_JS.has(d.object_type));
+  if (tt === 'survey_complete') {
+    const p = state.survey_progress[defn.required_survey_id];
+    return p && p.completed;
+  }
+  if (tt === 'tier_unlocked') return (state.unlocked_tiers || []).includes(defn.required_tier_id);
+  if (tt === 'transient_observed') return Object.values(state.transient_events || {}).some(ts => ts.reward_claimed);
+  if (tt === 'campaign_scene_unlocked') {
+    const cs = (state.campaign.scenes || {})[defn.required_scene_id];
+    return cs && cs.unlocked;
+  }
+  if (tt === 'campaign_scene_active') {
+    return (state.campaign.active_scene_id === defn.required_scene_id) || (SCENE.id === defn.required_scene_id);
+  }
+  if (tt === 'survey_active_or_complete') {
+    return state.active_survey_id === defn.required_survey_id || (state.survey_progress[defn.required_survey_id] && state.survey_progress[defn.required_survey_id].completed);
+  }
+  if (tt === 'deep_field_discovery') {
+    return Object.values(state.discoveries).some(d => DEEP_FIELD_TYPES_JS.has(d.object_type) && d.confidence >= 0.5);
+  }
+  return false;
+}
+
+function evaluateObjectivesJS() {
+  ensureObjectiveFields();
+  const newly = [];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const sorted = [...OBJECTIVES].sort((a,b) => (a.tutorial_step||0) - (b.tutorial_step||0));
+    for (const defn of sorted) {
+      const prog = state.objectives[defn.id] || { objective_id: defn.id, status: 'locked', reward_claimed: false };
+      if (prog.status === 'completed') continue;
+      const canEval = prog.status === 'active' || sorted.every(o => o.tutorial_step >= defn.tutorial_step || (state.objectives[o.id] && state.objectives[o.id].status === 'completed') || o.tutorial_step >= defn.tutorial_step);
+      const predsOk = sorted.filter(o => o.tutorial_step < defn.tutorial_step).every(o => state.objectives[o.id] && state.objectives[o.id].status === 'completed');
+      if (prog.status !== 'active' && !predsOk) continue;
+      if (!objectiveCondition(defn)) continue;
+      state.objectives[defn.id] = { ...prog, status: 'completed', completed_turn: state.turn, reward_claimed: true };
+      state.active_objective_ids = (state.active_objective_ids || []).filter(id => id !== defn.id);
+      (defn.next_objective_ids || []).forEach(nid => {
+        if (!state.objectives[nid]) state.objectives[nid] = { objective_id: nid, status: 'locked', reward_claimed: false };
+        if (state.objectives[nid].status === 'locked') state.objectives[nid].status = 'active';
+        if (!(state.active_objective_ids || []).includes(nid)) state.active_objective_ids.push(nid);
+      });
+      if (!prog.reward_claimed) state.research_points += defn.reward_research_points || 0;
+      newly.push(defn);
+      changed = true;
+    }
+  }
+  if (!Object.keys(state.objectives).length && OBJECTIVES.length) {
+    const first = OBJECTIVES[0];
+    state.objectives[first.id] = { objective_id: first.id, status: 'active', reward_claimed: false };
+    state.active_objective_ids = [first.id];
+  }
+  if (newly.length) saveState();
+  return newly;
+}
+
+function logObjectives(completed) {
+  (completed || []).forEach(o => addLog('Objective: ' + o.title + ' — +' + (o.reward_research_points||0) + ' RP', 'log-unlock'));
 }
 
 function scopeMatches(survey) {
@@ -704,6 +787,12 @@ function renderHeader() {
   const mod = getEntityModifier();
   const hb = document.getElementById('h-background');
   if (hb) hb.innerHTML = 'Background: <b>' + esc(mod.name) + '</b> — <span style="color:var(--dim)">' + esc(mod.description) + '</span>';
+  const ho = document.getElementById('h-objective');
+  if (ho) {
+    const active = (state.active_objective_ids || []).map(id => OBJECTIVES.find(o => o.id === id)).filter(Boolean);
+    if (active.length) ho.innerHTML = 'Objective: <b>' + esc(active[0].title) + '</b>';
+    else ho.innerHTML = '';
+  }
 }
 
 function displayName(obj) {
@@ -1009,6 +1098,8 @@ function doObserve() {
     addLog('No new data from this observation.', 'log-info');
     const ms = evaluateMilestonesJS();
     logMilestones(ms);
+  const ob = evaluateObjectivesJS();
+  logObjectives(ob);
     saveState();
     renderAll();
     return;
@@ -1021,6 +1112,8 @@ function doObserve() {
   logSurveyEvent(r.surveyEvent);
   const ms = evaluateMilestonesJS();
   logMilestones(ms);
+  const ob = evaluateObjectivesJS();
+  logObjectives(ob);
   saveState();
   renderAll();
 }
@@ -1111,6 +1204,8 @@ function doSurvey() {
     ? state.consecutive_no_rp_turns + 1 : 0;
   const ms = evaluateMilestonesJS();
   logMilestones(ms);
+  const ob = evaluateObjectivesJS();
+  logObjectives(ob);
   saveState();
   renderAll();
   showGuidanceHints();
@@ -1123,6 +1218,8 @@ function doUnlock(tierId) {
     addLog(entityName() + ' unlocked: ' + tier.name + (tier.speculative ? ' [SPECULATIVE]' : ''), 'log-unlock');
     const ms = evaluateMilestonesJS();
     logMilestones(ms);
+  const ob = evaluateObjectivesJS();
+  logObjectives(ob);
     saveState();
     renderAll();
   }
@@ -1150,6 +1247,7 @@ function doReset() {
   localStorage.removeItem(STORAGE_KEY);
   state = JSON.parse(JSON.stringify(INIT_STATE));
   ensureSurveyMilestoneFields();
+  ensureObjectiveFields();
   firstDiscoveryCount = 0;
   firstTypesSeen = new Set();
   selectedObjId = null;
@@ -1404,6 +1502,27 @@ function observeTransient(defn) {
   renderAll();
 }
 
+
+function renderObjectives() {
+  const el = document.getElementById('tab-objectives');
+  if (!el) return;
+  let h = '<div class="panel-title">Tutorial Objectives</div>';
+  const active = (state.active_objective_ids || []).map(id => OBJECTIVES.find(o => o.id === id)).filter(Boolean);
+  if (active.length) {
+    const o = active[0];
+    h += '<div class="tier-card unlocked"><span class="tier-name">' + esc(o.title) + '</span>';
+    h += '<div style="font-size:10px;color:var(--dim);margin-top:3px">' + esc(o.hint || o.description) + '</div>';
+    if (o.suggested_command) h += '<div class="tier-meta" style="font-family:monospace;font-size:9px;word-break:break-all">' + esc(o.suggested_command) + '</div>';
+    h += '</div>';
+  }
+  const done = OBJECTIVES.filter(o => state.objectives[o.id] && state.objectives[o.id].status === 'completed');
+  if (done.length) {
+    h += '<div style="font-size:10px;color:var(--dim);margin-top:10px">Completed</div>';
+    done.forEach(o => { h += '<div style="font-size:11px;color:var(--green);margin-top:4px">✓ ' + esc(o.title) + ' (+' + o.reward_research_points + ' RP)</div>'; });
+  }
+  el.innerHTML = h;
+}
+
 function renderTransients() {
   const el = document.getElementById('tab-transients');
   if (!el) return;
@@ -1440,6 +1559,7 @@ function renderAll() {
   renderMilestones();
   renderCampaign();
   renderTransients();
+  renderObjectives();
   renderSkyMap();
   showGuidanceHints();
 }
@@ -1448,6 +1568,7 @@ window.addEventListener('resize', renderSkyMap);
 
 ensureEntity();
 ensureSurveyMilestoneFields();
+  ensureObjectiveFields();
 if (needsNaming()) {
   showNaming();
 } else {

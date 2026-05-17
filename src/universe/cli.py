@@ -113,11 +113,27 @@ def game() -> None:
 
 def _load_game_state(state_path: str):
     from universe.game.models import ResearchState
+    from universe.game.objectives import ensure_objective_progress
     from universe.game.scenes import ensure_campaign_state
+    from universe.game.transients import ensure_transient_states
 
-    return ensure_campaign_state(
-        ResearchState.model_validate_json(Path(state_path).read_text(encoding="utf-8"))
+    state = ensure_objective_progress(
+        ensure_transient_states(
+            ensure_campaign_state(
+                ResearchState.model_validate_json(
+                    Path(state_path).read_text(encoding="utf-8")
+                )
+            )
+        )
     )
+    return state
+
+
+def _echo_objective_completions(completions) -> None:
+    for comp in completions:
+        click.echo(
+            f"  Objective complete: {comp.definition.title} — +{comp.research_points} RP"
+        )
 
 
 def _save_game_state(state, path: Path) -> None:
@@ -188,13 +204,18 @@ def game_init(out: str, starting_rp: int, name: str | None, etype: str, motto: s
     )
     from universe.game.scenes import ensure_campaign_state
 
+    from universe.game.objectives import ensure_objective_progress, evaluate_objectives
     from universe.game.transients import ensure_transient_states
 
-    state = ensure_transient_states(
-        ensure_campaign_state(
-            ResearchState(research_points=starting_rp, research_entity=entity)
+    state = ensure_objective_progress(
+        ensure_transient_states(
+            ensure_campaign_state(
+                ResearchState(research_points=starting_rp, research_entity=entity)
+            )
         )
     )
+    state, completions = evaluate_objectives(state)
+    _echo_objective_completions(completions)
     out_path = Path(out)
     _save_game_state(state, out_path)
     click.echo(f"Game state initialized: {out_path}")
@@ -234,6 +255,9 @@ def game_observe(scene_path: str, state_path: str, out: str | None) -> None:
             click.echo(f"  {r.message}")
         total_rp = new_state.research_points - state.research_points
         click.echo(f"Net RP this turn: +{total_rp} (now {new_state.research_points})")
+        for r in results:
+            if r.object_id == "__objective__":
+                click.echo(f"  {r.message}")
 
     out_path = Path(out) if out else Path(state_path)
     _save_game_state(new_state, out_path)
@@ -249,8 +273,15 @@ def game_upgrade(state_path: str, tier: str, out: str | None) -> None:
     from universe.game.tech_tree import unlock_tier
 
     state = _load_game_state(state_path)
+    before = state
     new_state, message = unlock_tier(state, tier)
     click.echo(message)
+    from universe.game.objectives import evaluate_objectives
+
+    new_state, completions = evaluate_objectives(new_state)
+    _echo_objective_completions(completions)
+    if completions:
+        click.echo(f"  RP: {before.research_points} → {new_state.research_points}")
 
     out_path = Path(out) if out else Path(state_path)
     _save_game_state(new_state, out_path)
@@ -359,6 +390,10 @@ def game_set_scene(state_path: str, scene_id: str, out: str | None) -> None:
     click.echo(message)
     if "locked" in message.lower():
         sys.exit(1)
+    from universe.game.objectives import evaluate_objectives
+
+    new_state, completions = evaluate_objectives(new_state)
+    _echo_objective_completions(completions)
     out_path = Path(out) if out else Path(state_path)
     _save_game_state(new_state, out_path)
     click.echo(f"State saved: {out_path}")
@@ -443,6 +478,22 @@ def game_status(state_path: str) -> None:
     achieved = sum(1 for r in state.milestones.values() if r.achieved)
     click.echo(f"  Surveys completed: {completed_surveys}")
     click.echo(f"  Milestones achieved: {achieved}")
+
+    from universe.game.objectives import (
+        active_objectives,
+        evaluate_objectives,
+        next_objective_hint,
+    )
+
+    state, _ = evaluate_objectives(state)
+    active_objs = active_objectives(state)
+    if active_objs:
+        click.echo("")
+        click.echo("  Tutorial objective:")
+        click.echo(f"    → {active_objs[0].title}")
+        hint = next_objective_hint(state)
+        if hint:
+            click.echo(f"      {hint}")
 
     click.echo("")
     click.echo("  Campaign:")
@@ -529,6 +580,48 @@ def game_status(state_path: str) -> None:
             break
 
 
+@game.command("objectives")
+@click.option("--state", "state_path", required=True, type=click.Path(exists=True))
+def game_objectives(state_path: str) -> None:
+    """List first-run tutorial objectives (active, completed, locked)."""
+    from universe.game.objectives import (
+        active_objectives,
+        ensure_objective_progress,
+        evaluate_objectives,
+        format_objective_status_lines,
+        get_default_objectives,
+        next_objective_hint,
+    )
+    from universe.game.objectives import ObjectiveStatus
+
+    state = _load_game_state(state_path)
+    state, _ = evaluate_objectives(state)
+    state = ensure_objective_progress(state)
+    click.echo(f"=== Tutorial Objectives (turn {state.turn}) ===")
+    for line in format_objective_status_lines(state):
+        click.echo(line.replace("**", "").replace("_", ""))
+    active = active_objectives(state)
+    if active:
+        click.echo("")
+        click.echo(f"Current focus: {active[0].title}")
+        hint = next_objective_hint(state)
+        if hint:
+            click.echo(f"  Hint: {hint}")
+    locked = sum(
+        1
+        for p in state.objectives.values()
+        if p.status == ObjectiveStatus.LOCKED
+    )
+    total = len(get_default_objectives())
+    done = sum(
+        1
+        for p in state.objectives.values()
+        if p.status == ObjectiveStatus.COMPLETED
+    )
+    click.echo("")
+    click.echo(f"  Progress: {done}/{total} completed, {locked} locked")
+
+
 @game.command("transients")
 @click.option("--state", "state_path", required=True, type=click.Path(exists=True))
 @click.option("--scene", "scene_id", default=None, help="Campaign scene id filter.")
@@ -608,13 +701,12 @@ def game_observe_transient(
     out: str | None,
 ) -> None:
     """Observe an active transient event in the current scene."""
-    from universe.game.models import ResearchState
     from universe.game.transients import observe_transient_event
 
     scene_data = json.loads(Path(scene_path).read_text())
     scene_data.pop("_units", None)
     scene = SceneRegion.model_validate(scene_data)
-    state = ResearchState.model_validate_json(Path(state_path).read_text())
+    state = _load_game_state(state_path)
 
     new_state, result, err = observe_transient_event(scene, state, event_id)
     if result is None:
@@ -622,8 +714,12 @@ def game_observe_transient(
         raise SystemExit(1)
 
     click.echo(result.message)
+    from universe.game.objectives import evaluate_objectives
+
+    new_state, completions = evaluate_objectives(new_state, scene)
+    _echo_objective_completions(completions)
     out_path = Path(out) if out else Path(state_path)
-    out_path.write_text(new_state.model_dump_json(indent=2), encoding="utf-8")
+    _save_game_state(new_state, out_path)
     click.echo(f"State saved: {out_path}")
 
 
@@ -690,15 +786,18 @@ def game_surveys(state_path: str, scene_path: str | None) -> None:
 @click.option("--out", default=None, help="Output path for updated state.")
 def game_start_survey(state_path: str, survey_id: str, out: str | None) -> None:
     """Mark a survey program as the active campaign."""
-    from universe.game.models import ResearchState
     from universe.game.surveys import start_survey
 
-    state = ResearchState.model_validate_json(Path(state_path).read_text())
+    state = _load_game_state(state_path)
     new_state, message = start_survey(state, survey_id)
     click.echo(message)
+    from universe.game.objectives import evaluate_objectives
+
+    new_state, completions = evaluate_objectives(new_state)
+    _echo_objective_completions(completions)
 
     out_path = Path(out) if out else Path(state_path)
-    out_path.write_text(new_state.model_dump_json(indent=2), encoding="utf-8")
+    _save_game_state(new_state, out_path)
     click.echo(f"State saved: {out_path}")
 
 
@@ -784,6 +883,7 @@ def game_export_godot_data(out: str) -> None:
     from universe.game.scenes import catalog_for_export
     from universe.game.surveys import get_default_survey_programs
     from universe.game.tech_tree import get_default_tech_tree
+    from universe.game.objectives import objectives_for_export
     from universe.game.transients import transients_for_export
 
     out_dir = Path(out)
@@ -802,8 +902,9 @@ def game_export_godot_data(out: str) -> None:
         "entity_modifiers.json": [m.model_dump(mode="json") for m in get_all_entity_modifiers()],
         "scene_catalog.json": catalog_for_export(),
         "transient_events.json": transients_for_export(),
+        "objectives.json": objectives_for_export(),
     }
-    manifest = {"files": list(bundle.keys()), "schema_version": "0.4.0"}
+    manifest = {"files": list(bundle.keys()), "schema_version": "0.5.0"}
     bundle["manifest.json"] = manifest
 
     written: list[Path] = []
@@ -998,6 +1099,12 @@ def game_report(scene_path: str, state_path: str, out: str) -> None:
     tlines = format_transient_status_lines(scene, state)
     if tlines:
         lines += ["## Transient Events", ""] + tlines + [""]
+
+    from universe.game.objectives import format_objective_status_lines
+
+    olines = format_objective_status_lines(state)
+    if olines:
+        lines += ["## Tutorial Objectives", ""] + olines + [""]
 
     from universe.game.guidance import get_guidance_hints
 

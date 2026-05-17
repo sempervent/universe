@@ -422,6 +422,10 @@ def observe_transient_event(
 
     new_state, _ = evaluate_milestones(new_state)
 
+    from universe.game.objectives import evaluate_objectives
+
+    new_state, _ = evaluate_objectives(new_state, scene)
+
     if state.active_survey_id and target:
         new_state, _ = update_survey_progress_for_discovery(
             new_state,

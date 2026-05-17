@@ -34,6 +34,8 @@ static func default_state() -> Dictionary:
 		"turn": 0,
 		"campaign": default_campaign(),
 		"transient_events": {},
+		"objectives": {},
+		"active_objective_ids": [],
 	}
 
 
@@ -77,7 +79,7 @@ static func ensure_backward_compatibility(state: Dictionary) -> Dictionary:
 			if not out["research_entity"].has(k):
 				out["research_entity"][k] = e_def[k]
 
-	for dict_key in ["discoveries", "survey_progress", "milestones", "transient_events"]:
+	for dict_key in ["discoveries", "survey_progress", "milestones", "transient_events", "objectives"]:
 		if not (out[dict_key] is Dictionary):
 			out[dict_key] = {}
 

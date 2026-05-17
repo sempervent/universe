@@ -291,6 +291,9 @@ def start_survey(state, survey_id: str) -> tuple[object, str]:
     new_state = state.model_copy(
         update={"active_survey_id": survey_id, "survey_progress": new_progress}
     )
+    from universe.game.objectives import evaluate_objectives
+
+    new_state, _ = evaluate_objectives(new_state)
     return new_state, f"Started survey: {survey.name}"
 
 

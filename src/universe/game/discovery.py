@@ -575,6 +575,20 @@ def observe_scene(
     # Evaluate milestones (auto-claim rewards).
     new_state, achieved = evaluate_milestones(new_state)
 
+    from universe.game.objectives import evaluate_objectives
+
+    new_state, objective_completions = evaluate_objectives(new_state, scene)
+    for comp in objective_completions:
+        results.append(
+            DiscoveryResult(
+                object_id="__objective__",
+                object_type="tutorial_objective",
+                identification_confidence=0.0,
+                research_points_awarded=comp.research_points,
+                message=f"Objective: {comp.definition.title} — +{comp.research_points} RP",
+            )
+        )
+
     new_state, newly_unlocked_scenes = update_scene_unlocks(new_state)
     if scene.id == new_state.campaign.active_scene_id:
         new_state = mark_scene_visited(new_state, scene.id)
