@@ -105,6 +105,22 @@ def game() -> None:
     """Telescope progression and discovery game commands."""
 
 
+def _load_game_state(state_path: str):
+    from universe.game.models import ResearchState
+    from universe.game.scenes import ensure_campaign_state
+
+    return ensure_campaign_state(
+        ResearchState.model_validate_json(Path(state_path).read_text(encoding="utf-8"))
+    )
+
+
+def _save_game_state(state, path: Path) -> None:
+    from universe.game.scenes import ensure_campaign_state
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(ensure_campaign_state(state).model_dump_json(indent=2), encoding="utf-8")
+
+
 @game.command("tech-tree")
 @click.option(
     "--state",
@@ -164,10 +180,13 @@ def game_init(out: str, starting_rp: int, name: str | None, etype: str, motto: s
         entity_type=etype,
         motto=motto,
     )
-    state = ResearchState(research_points=starting_rp, research_entity=entity)
+    from universe.game.scenes import ensure_campaign_state
+
+    state = ensure_campaign_state(
+        ResearchState(research_points=starting_rp, research_entity=entity)
+    )
     out_path = Path(out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+    _save_game_state(state, out_path)
     click.echo(f"Game state initialized: {out_path}")
     click.echo(f"  Entity: {entity.name}")
     if entity.motto:
@@ -187,13 +206,12 @@ def game_init(out: str, starting_rp: int, name: str | None, etype: str, motto: s
 def game_observe(scene_path: str, state_path: str, out: str | None) -> None:
     """Observe a scene and discover objects."""
     from universe.game.discovery import observe_scene
-    from universe.game.models import ResearchState
 
     scene_data = json.loads(Path(scene_path).read_text())
     scene_data.pop("_units", None)
     scene = SceneRegion.model_validate(scene_data)
 
-    state = ResearchState.model_validate_json(Path(state_path).read_text())
+    state = _load_game_state(state_path)
     new_state, results = observe_scene(scene, state)
 
     entity_name = state.research_entity.name
@@ -208,7 +226,7 @@ def game_observe(scene_path: str, state_path: str, out: str | None) -> None:
         click.echo(f"Net RP this turn: +{total_rp} (now {new_state.research_points})")
 
     out_path = Path(out) if out else Path(state_path)
-    out_path.write_text(new_state.model_dump_json(indent=2), encoding="utf-8")
+    _save_game_state(new_state, out_path)
     click.echo(f"State saved: {out_path}")
 
 
@@ -218,15 +236,14 @@ def game_observe(scene_path: str, state_path: str, out: str | None) -> None:
 @click.option("--out", default=None, help="Output path for updated state.")
 def game_upgrade(state_path: str, tier: str, out: str | None) -> None:
     """Unlock a telescope tier."""
-    from universe.game.models import ResearchState
     from universe.game.tech_tree import unlock_tier
 
-    state = ResearchState.model_validate_json(Path(state_path).read_text())
+    state = _load_game_state(state_path)
     new_state, message = unlock_tier(state, tier)
     click.echo(message)
 
     out_path = Path(out) if out else Path(state_path)
-    out_path.write_text(new_state.model_dump_json(indent=2), encoding="utf-8")
+    _save_game_state(new_state, out_path)
     click.echo(f"State saved: {out_path}")
 
 
@@ -236,18 +253,151 @@ def game_upgrade(state_path: str, tier: str, out: str | None) -> None:
 @click.option("--out", default=None, help="Output path for updated state.")
 def game_set_telescope(state_path: str, tier: str, out: str | None) -> None:
     """Set the active telescope tier (must already be unlocked)."""
-    from universe.game.models import ResearchState
 
-    state = ResearchState.model_validate_json(Path(state_path).read_text())
+    state = _load_game_state(state_path)
     if tier not in state.unlocked_tiers:
         click.echo(f"Tier '{tier}' is not unlocked.", err=True)
         sys.exit(1)
 
     new_state = state.model_copy(update={"active_telescope_tier": tier})
     out_path = Path(out) if out else Path(state_path)
-    out_path.write_text(new_state.model_dump_json(indent=2), encoding="utf-8")
+    _save_game_state(new_state, out_path)
     click.echo(f"Active telescope set to: {tier}")
     click.echo(f"State saved: {out_path}")
+
+
+def _print_campaign_status(state) -> None:
+    from universe.game.scenes import (
+        catalog_generate_command,
+        generate_scene_command,
+        get_default_scene_catalog,
+        get_scene_definition,
+        recommended_next_scene,
+        scene_json_path,
+    )
+
+    active = get_scene_definition(state.campaign.active_scene_id)
+    active_name = active.name if active else state.campaign.active_scene_id
+    click.echo(f"  Active campaign scene: {active_name} ({state.campaign.active_scene_id})")
+    nxt = recommended_next_scene(state)
+    if nxt:
+        click.echo(f"  Recommended next: {nxt.name} ({nxt.id})")
+        click.echo(f"    {generate_scene_command(nxt)}")
+    click.echo("  Campaign scenes:")
+    for defn in sorted(get_default_scene_catalog(), key=lambda d: d.order_index):
+        cs = state.campaign.scenes.get(defn.id)
+        if cs is None:
+            continue
+        marker = " *" if defn.id == state.campaign.active_scene_id else ""
+        lock = "unlocked" if cs.unlocked else "locked"
+        visit = ", visited" if cs.visited else ""
+        req = ""
+        if not cs.unlocked and defn.unlock_tier_id:
+            req = f" (needs {defn.unlock_tier_id})"
+        click.echo(f"    [{lock}{visit}]{marker} {defn.id} — {defn.name}{req}")
+        if cs.unlocked:
+            path = Path(scene_json_path(defn))
+            if not path.exists():
+                click.echo(f"      generate: {generate_scene_command(defn)}")
+            click.echo(f"      legacy: {catalog_generate_command(defn)}")
+
+
+@game.command("scenes")
+@click.option("--state", "state_path", required=True, type=click.Path(exists=True))
+def game_scenes(state_path: str) -> None:
+    """List campaign observation scenes and unlock status."""
+    from universe.game.scenes import generate_scene_command, get_default_scene_catalog
+    from universe.game.surveys import get_survey_by_id
+
+    state = _load_game_state(state_path)
+    click.echo("Campaign observation scenes:")
+    for defn in sorted(get_default_scene_catalog(), key=lambda d: d.order_index):
+        cs = state.campaign.scenes.get(defn.id)
+        unlocked = cs.unlocked if cs else False
+        active = defn.id == state.campaign.active_scene_id
+        click.echo("")
+        click.echo(f"  {defn.id} — {defn.name}{'  [ACTIVE]' if active else ''}")
+        click.echo(f"    Status: {'unlocked' if unlocked else 'locked'}")
+        if defn.unlock_tier_id:
+            click.echo(f"    Unlock: tier {defn.unlock_tier_id}")
+        if defn.unlock_milestone_id:
+            click.echo(f"    Narrative trigger: milestone {defn.unlock_milestone_id}")
+        if defn.recommended_survey_ids:
+            names = []
+            for sid in defn.recommended_survey_ids[:4]:
+                s = get_survey_by_id(sid)
+                names.append(s.name if s else sid)
+            click.echo(f"    Surveys: {', '.join(names)}")
+        if defn.recommended_signal_modes:
+            click.echo(
+                "    Signals: "
+                + ", ".join(s.value for s in defn.recommended_signal_modes[:6])
+            )
+        click.echo(f"    Generate: {generate_scene_command(defn)}")
+
+
+@game.command("set-scene")
+@click.option("--state", "state_path", required=True, type=click.Path(exists=True))
+@click.option("--scene", "scene_id", required=True, help="Campaign scene id (e.g. scene-001).")
+@click.option("--out", default=None, help="Output path for updated state.")
+def game_set_scene(state_path: str, scene_id: str, out: str | None) -> None:
+    """Set the active campaign observation scene."""
+    from universe.game.scenes import set_active_scene
+
+    state = _load_game_state(state_path)
+    new_state, message = set_active_scene(state, scene_id)
+    click.echo(message)
+    if "locked" in message.lower():
+        sys.exit(1)
+    out_path = Path(out) if out else Path(state_path)
+    _save_game_state(new_state, out_path)
+    click.echo(f"State saved: {out_path}")
+
+
+@game.command("generate-scene")
+@click.option("--scene", "scene_id", required=True, help="Campaign scene id to generate.")
+@click.option("--seed", default=None, help="Override default seed from catalog.")
+@click.option("--out", default=None, help="Override default output directory.")
+def game_generate_scene(scene_id: str, seed: str | None, out: str | None) -> None:
+    """Generate a campaign scene using catalog defaults (wraps universe generate)."""
+    from universe.export.scene_json import export_scene
+    from universe.game.scenes import get_scene_definition
+
+    defn = get_scene_definition(scene_id)
+    if defn is None:
+        click.echo(f"Unknown campaign scene: {scene_id}", err=True)
+        sys.exit(1)
+
+    use_seed = seed or defn.default_seed
+    use_out = out or defn.default_output_path
+    gen = defn.generator_name or defn.id
+
+    if gen in ("solar-system", "starter"):
+        from universe.procedural.solar_system import generate_solar_system
+
+        scene = generate_solar_system(seed=use_seed)
+    elif gen == "scene-001":
+        from universe.procedural.region import generate_scene_001
+
+        scene = generate_scene_001(seed=use_seed)
+    else:
+        click.echo(f"No generator for scene: {gen}", err=True)
+        sys.exit(1)
+
+    click.echo(f"Generating {defn.name} (id={scene_id}, seed={use_seed}) ...")
+    artifacts = export_scene(scene, use_out)
+    click.echo("Artifacts written:")
+    for name, path in artifacts.items():
+        click.echo(f"  {name}: {path}")
+
+
+@game.command("campaign")
+@click.option("--state", "state_path", required=True, type=click.Path(exists=True))
+def game_campaign(state_path: str) -> None:
+    """Show campaign progression (active scene, unlocks, recommended next)."""
+    state = _load_game_state(state_path)
+    click.echo("=== Campaign ===")
+    _print_campaign_status(state)
 
 
 @game.command("status")
@@ -255,7 +405,6 @@ def game_set_telescope(state_path: str, tier: str, out: str | None) -> None:
 def game_status(state_path: str) -> None:
     """Print current game status."""
     from universe.game.entity import format_entity_modifier_summary, get_entity_modifier
-    from universe.game.models import ResearchState
     from universe.game.surveys import (
         SurveyProgramStatus,
         available_surveys,
@@ -264,7 +413,7 @@ def game_status(state_path: str) -> None:
     )
     from universe.game.tech_tree import available_upgrades, effective_tier_research_cost
 
-    state = ResearchState.model_validate_json(Path(state_path).read_text())
+    state = _load_game_state(state_path)
 
     entity = state.research_entity
     mod = get_entity_modifier(entity.entity_type)
@@ -286,6 +435,10 @@ def game_status(state_path: str) -> None:
     achieved = sum(1 for r in state.milestones.values() if r.achieved)
     click.echo(f"  Surveys completed: {completed_surveys}")
     click.echo(f"  Milestones achieved: {achieved}")
+
+    click.echo("")
+    click.echo("  Campaign:")
+    _print_campaign_status(state)
 
     if state.active_survey_id:
         active = get_survey_by_id(state.active_survey_id)
@@ -503,6 +656,7 @@ def game_export_godot_data(out: str) -> None:
     from universe.game.entity import ENTITY_TYPE_LABELS, RANDOM_ENTITY_NAMES, get_all_entity_modifiers
     from universe.game.milestones import get_default_milestones
     from universe.game.models import SignalType
+    from universe.game.scenes import catalog_for_export
     from universe.game.surveys import get_default_survey_programs
     from universe.game.tech_tree import get_default_tech_tree
 
@@ -520,8 +674,9 @@ def game_export_godot_data(out: str) -> None:
         "entity_types.json": ENTITY_TYPE_LABELS,
         "random_entity_names.json": RANDOM_ENTITY_NAMES,
         "entity_modifiers.json": [m.model_dump(mode="json") for m in get_all_entity_modifiers()],
+        "scene_catalog.json": catalog_for_export(),
     }
-    manifest = {"files": list(bundle.keys()), "schema_version": "0.2.0"}
+    manifest = {"files": list(bundle.keys()), "schema_version": "0.3.0"}
     bundle["manifest.json"] = manifest
 
     written: list[Path] = []

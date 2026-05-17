@@ -1,0 +1,162 @@
+[
+  {
+    "entity_type": "backyard_observatory",
+    "name": "Backyard Persistence",
+    "description": "Improvises early optical work cheaply.",
+    "discovery_rp_multiplier": 1.0,
+    "milestone_rp_multiplier": 1.0,
+    "survey_rp_multiplier": 1.0,
+    "upgrade_cost_multiplier": 1.0,
+    "early_optical_upgrade_cost_multiplier": 0.85,
+    "space_upgrade_cost_multiplier": 1.0,
+    "confidence_bonus": 0.0,
+    "survey_progress_bonus": 0,
+    "speculative_bonus": false,
+    "notes": [
+      "Applies early_optical_upgrade_cost_multiplier to ground_optical and improved_ground only."
+    ]
+  },
+  {
+    "entity_type": "university_lab",
+    "name": "Peer Review Engine",
+    "description": "Better at turning firsts into funded research.",
+    "discovery_rp_multiplier": 1.0,
+    "milestone_rp_multiplier": 1.1,
+    "survey_rp_multiplier": 1.0,
+    "upgrade_cost_multiplier": 1.0,
+    "early_optical_upgrade_cost_multiplier": 1.0,
+    "space_upgrade_cost_multiplier": 1.0,
+    "confidence_bonus": 0.0,
+    "survey_progress_bonus": 0,
+    "speculative_bonus": false,
+    "notes": []
+  },
+  {
+    "entity_type": "national_observatory",
+    "name": "Institutional Survey Machine",
+    "description": "Survey operations return slightly more RP when completed.",
+    "discovery_rp_multiplier": 1.0,
+    "milestone_rp_multiplier": 1.0,
+    "survey_rp_multiplier": 1.1,
+    "upgrade_cost_multiplier": 1.0,
+    "early_optical_upgrade_cost_multiplier": 1.0,
+    "space_upgrade_cost_multiplier": 1.0,
+    "confidence_bonus": 0.0,
+    "survey_progress_bonus": 0,
+    "speculative_bonus": false,
+    "notes": []
+  },
+  {
+    "entity_type": "private_institute",
+    "name": "Flexible Funding",
+    "description": "Slightly more RP from each discovery credit.",
+    "discovery_rp_multiplier": 1.05,
+    "milestone_rp_multiplier": 1.0,
+    "survey_rp_multiplier": 1.0,
+    "upgrade_cost_multiplier": 1.0,
+    "early_optical_upgrade_cost_multiplier": 1.0,
+    "space_upgrade_cost_multiplier": 1.0,
+    "confidence_bonus": 0.0,
+    "survey_progress_bonus": 0,
+    "speculative_bonus": false,
+    "notes": []
+  },
+  {
+    "entity_type": "orbital_consortium",
+    "name": "Launch Infrastructure",
+    "description": "Space-era telescope tiers cost a bit less RP.",
+    "discovery_rp_multiplier": 1.0,
+    "milestone_rp_multiplier": 1.0,
+    "survey_rp_multiplier": 1.0,
+    "upgrade_cost_multiplier": 1.0,
+    "early_optical_upgrade_cost_multiplier": 1.0,
+    "space_upgrade_cost_multiplier": 0.85,
+    "confidence_bonus": 0.0,
+    "survey_progress_bonus": 0,
+    "speculative_bonus": false,
+    "notes": [
+      "Applies space_upgrade_cost_multiplier from space_optical onward (tier_index >= 3 in the default tree)."
+    ]
+  },
+  {
+    "entity_type": "ai_research_bureau",
+    "name": "Pattern Classifier",
+    "description": "Slight boost to identification confidence when already detectable.",
+    "discovery_rp_multiplier": 1.0,
+    "milestone_rp_multiplier": 1.0,
+    "survey_rp_multiplier": 1.0,
+    "upgrade_cost_multiplier": 1.0,
+    "early_optical_upgrade_cost_multiplier": 1.0,
+    "space_upgrade_cost_multiplier": 1.0,
+    "confidence_bonus": 0.05,
+    "survey_progress_bonus": 0,
+    "speculative_bonus": false,
+    "notes": [
+      "confidence_bonus applies only if base confidence > 0; cannot conjure detections from nothing."
+    ]
+  },
+  {
+    "entity_type": "citizen_science_network",
+    "name": "Many Eyes",
+    "description": "Each qualifying survey discovery adds one extra progress step.",
+    "discovery_rp_multiplier": 1.0,
+    "milestone_rp_multiplier": 1.0,
+    "survey_rp_multiplier": 1.0,
+    "upgrade_cost_multiplier": 1.0,
+    "early_optical_upgrade_cost_multiplier": 1.0,
+    "space_upgrade_cost_multiplier": 1.0,
+    "confidence_bonus": 0.0,
+    "survey_progress_bonus": 1,
+    "speculative_bonus": false,
+    "notes": [
+      "When a new object counts toward the active survey, progress increments by 1 + survey_progress_bonus (capped at completion_goal)."
+    ]
+  },
+  {
+    "entity_type": "occult_sky_society",
+    "name": "The Stars Whisper Back",
+    "description": "Speculative programs return a sliver more RP.",
+    "discovery_rp_multiplier": 1.0,
+    "milestone_rp_multiplier": 1.0,
+    "survey_rp_multiplier": 1.0,
+    "upgrade_cost_multiplier": 1.0,
+    "early_optical_upgrade_cost_multiplier": 1.0,
+    "space_upgrade_cost_multiplier": 1.0,
+    "confidence_bonus": 0.0,
+    "survey_progress_bonus": 0,
+    "speculative_bonus": true,
+    "notes": [
+      "+10% RP on speculative survey completion and speculative milestones."
+    ]
+  },
+  {
+    "entity_type": "corporate_research_division",
+    "name": "Procurement Department from Hell",
+    "description": "Slightly cheaper upgrades, slightly leaner milestone payouts.",
+    "discovery_rp_multiplier": 1.0,
+    "milestone_rp_multiplier": 0.95,
+    "survey_rp_multiplier": 1.0,
+    "upgrade_cost_multiplier": 0.95,
+    "early_optical_upgrade_cost_multiplier": 1.0,
+    "space_upgrade_cost_multiplier": 1.0,
+    "confidence_bonus": 0.0,
+    "survey_progress_bonus": 0,
+    "speculative_bonus": false,
+    "notes": []
+  },
+  {
+    "entity_type": "custom",
+    "name": "Custom Charter",
+    "description": "No institutional background modifier \u2014 play as you like.",
+    "discovery_rp_multiplier": 1.0,
+    "milestone_rp_multiplier": 1.0,
+    "survey_rp_multiplier": 1.0,
+    "upgrade_cost_multiplier": 1.0,
+    "early_optical_upgrade_cost_multiplier": 1.0,
+    "space_upgrade_cost_multiplier": 1.0,
+    "confidence_bonus": 0.0,
+    "survey_progress_bonus": 0,
+    "speculative_bonus": false,
+    "notes": []
+  }
+]

@@ -1,0 +1,246 @@
+[
+  {
+    "object_type": "star",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "infrared",
+      "ultraviolet",
+      "radio"
+    ],
+    "minimum_telescope_tier": 0,
+    "minimum_sensitivity": 0.01,
+    "minimum_resolution_arcsec": 3600.0,
+    "base_research_points": 2,
+    "notes": "The Sun and bright stars are visible to the naked eye.",
+    "speculative": false
+  },
+  {
+    "object_type": "planet",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "infrared"
+    ],
+    "minimum_telescope_tier": 0,
+    "minimum_sensitivity": 0.03,
+    "minimum_resolution_arcsec": 60.0,
+    "base_research_points": 3,
+    "notes": "Bright planets visible naked-eye; disk detail needs telescope.",
+    "speculative": false
+  },
+  {
+    "object_type": "moon",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "infrared"
+    ],
+    "minimum_telescope_tier": 0,
+    "minimum_sensitivity": 0.02,
+    "minimum_resolution_arcsec": 3600.0,
+    "base_research_points": 2,
+    "notes": "Earth's Moon is obvious; other moons need optical telescope.",
+    "speculative": false
+  },
+  {
+    "object_type": "asteroid",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "infrared"
+    ],
+    "minimum_telescope_tier": 2,
+    "minimum_sensitivity": 0.2,
+    "minimum_resolution_arcsec": 2.0,
+    "base_research_points": 5,
+    "notes": "Requires improved optics to distinguish from stars.",
+    "speculative": false
+  },
+  {
+    "object_type": "comet",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "infrared",
+      "ultraviolet"
+    ],
+    "minimum_telescope_tier": 1,
+    "minimum_sensitivity": 0.1,
+    "minimum_resolution_arcsec": 3600.0,
+    "base_research_points": 5,
+    "notes": "Bright comets visible naked-eye; faint ones need telescope.",
+    "speculative": false
+  },
+  {
+    "object_type": "observatory",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [],
+    "minimum_telescope_tier": 0,
+    "minimum_sensitivity": 0.0,
+    "minimum_resolution_arcsec": 3600.0,
+    "base_research_points": 0,
+    "notes": "The observer's own location. Always known.",
+    "speculative": false
+  },
+  {
+    "object_type": "galaxy",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "infrared",
+      "ultraviolet",
+      "radio"
+    ],
+    "minimum_telescope_tier": 2,
+    "minimum_sensitivity": 0.2,
+    "minimum_resolution_arcsec": 2.0,
+    "base_research_points": 10,
+    "notes": "Faint galaxies need improved ground or space optics.",
+    "speculative": false
+  },
+  {
+    "object_type": "lyman_alpha_blob",
+    "required_signal_types": [
+      "ultraviolet",
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "infrared",
+      "radio",
+      "xray"
+    ],
+    "minimum_telescope_tier": 3,
+    "minimum_sensitivity": 0.4,
+    "minimum_resolution_arcsec": 1.0,
+    "base_research_points": 30,
+    "notes": "Requires UV/deep optical; high-z LABs need space telescope.",
+    "speculative": false
+  },
+  {
+    "object_type": "quasar",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "radio",
+      "xray",
+      "infrared",
+      "ultraviolet"
+    ],
+    "minimum_telescope_tier": 3,
+    "minimum_sensitivity": 0.35,
+    "minimum_resolution_arcsec": 1.0,
+    "base_research_points": 20,
+    "notes": "Point-like at optical; radio/xray improve classification.",
+    "speculative": false
+  },
+  {
+    "object_type": "black_hole",
+    "required_signal_types": [
+      "xray"
+    ],
+    "optional_signal_types": [
+      "gravitational_wave",
+      "radio",
+      "visible_light",
+      "weak_lensing",
+      "gamma_ray"
+    ],
+    "minimum_telescope_tier": 5,
+    "minimum_sensitivity": 0.4,
+    "minimum_resolution_arcsec": 1.0,
+    "base_research_points": 25,
+    "notes": "Indirect detection via accretion X-rays; multi-messenger confirms.",
+    "speculative": false
+  },
+  {
+    "object_type": "magnetar",
+    "required_signal_types": [
+      "xray"
+    ],
+    "optional_signal_types": [
+      "gamma_ray",
+      "radio"
+    ],
+    "minimum_telescope_tier": 5,
+    "minimum_sensitivity": 0.45,
+    "minimum_resolution_arcsec": 3600.0,
+    "base_research_points": 25,
+    "notes": "Detected via X-ray/gamma bursts; radio pulsations add confidence.",
+    "speculative": false
+  },
+  {
+    "object_type": "cosmic_web_node",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "weak_lensing",
+      "dark_matter_inference",
+      "radio"
+    ],
+    "minimum_telescope_tier": 3,
+    "minimum_sensitivity": 0.4,
+    "minimum_resolution_arcsec": 3600.0,
+    "base_research_points": 15,
+    "notes": "Galaxy overdensity mapping; weak lensing confirms mass.",
+    "speculative": false
+  },
+  {
+    "object_type": "cosmic_web_filament",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "weak_lensing",
+      "dark_matter_inference",
+      "radio"
+    ],
+    "minimum_telescope_tier": 3,
+    "minimum_sensitivity": 0.45,
+    "minimum_resolution_arcsec": 3600.0,
+    "base_research_points": 35,
+    "notes": "Requires galaxy survey + statistical methods or weak lensing.",
+    "speculative": false
+  },
+  {
+    "object_type": "void",
+    "required_signal_types": [
+      "visible_light"
+    ],
+    "optional_signal_types": [
+      "weak_lensing",
+      "radio"
+    ],
+    "minimum_telescope_tier": 3,
+    "minimum_sensitivity": 0.4,
+    "minimum_resolution_arcsec": 3600.0,
+    "base_research_points": 15,
+    "notes": "Detected as absence of galaxies in survey data.",
+    "speculative": false
+  },
+  {
+    "object_type": "cmb_background",
+    "required_signal_types": [
+      "microwave"
+    ],
+    "optional_signal_types": [
+      "radio"
+    ],
+    "minimum_telescope_tier": 4,
+    "minimum_sensitivity": 0.4,
+    "minimum_resolution_arcsec": 3600.0,
+    "base_research_points": 20,
+    "notes": "Requires microwave/radio receiver capability.",
+    "speculative": false
+  }
+]

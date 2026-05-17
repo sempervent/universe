@@ -477,8 +477,10 @@ def observe_scene(
     """
     # Local import to avoid an import cycle (surveys/milestones reference state).
     from universe.game.milestones import evaluate_milestones
+    from universe.game.scenes import ensure_campaign_state, mark_scene_visited, update_scene_unlocks
     from universe.game.surveys import update_survey_progress_for_discovery
 
+    state = ensure_campaign_state(state)
     primary_results = observable_objects(scene, state)
     followup_results, _, followup_counts, last_tiers = apply_followup_observations(
         scene, state, primary_results
@@ -546,6 +548,10 @@ def observe_scene(
     # Evaluate milestones (auto-claim rewards).
     new_state, achieved = evaluate_milestones(new_state)
 
+    new_state, newly_unlocked_scenes = update_scene_unlocks(new_state)
+    if scene.id == new_state.campaign.active_scene_id:
+        new_state = mark_scene_visited(new_state, scene.id)
+
     # Append milestone / survey progression messages as info-level results.
     for msg in survey_messages:
         results.append(
@@ -569,6 +575,21 @@ def observe_scene(
                 message=(
                     f"Milestone: {m.name}{spec} — +{award.research_points} RP"
                 ),
+            )
+        )
+
+    from universe.game.scenes import get_scene_definition
+
+    for sid in newly_unlocked_scenes:
+        defn = get_scene_definition(sid)
+        label = defn.name if defn else sid
+        results.append(
+            DiscoveryResult(
+                object_id="__campaign__",
+                object_type="campaign_event",
+                identification_confidence=0.0,
+                research_points_awarded=0,
+                message=f"Campaign: unlocked observation scene '{label}' ({sid}).",
             )
         )
 

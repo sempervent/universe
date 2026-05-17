@@ -118,8 +118,33 @@ class DiscoveryResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Campaign
+# ---------------------------------------------------------------------------
+
+
+class CampaignSceneState(BaseModel):
+    scene_id: str
+    unlocked: bool = False
+    visited: bool = False
+    first_unlocked_turn: int | None = None
+    first_visited_turn: int | None = None
+    completed: bool = False
+    metadata: dict = Field(default_factory=dict)
+
+
+class CampaignState(BaseModel):
+    active_scene_id: str = "solar-system"
+    scenes: dict[str, CampaignSceneState] = Field(default_factory=dict)
+    completed_scene_ids: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Player state
 # ---------------------------------------------------------------------------
+
+
+def _empty_campaign() -> CampaignState:
+    return CampaignState(active_scene_id="solar-system", scenes={})
 
 
 class ResearchState(BaseModel):
@@ -142,6 +167,9 @@ class ResearchState(BaseModel):
     followup_observation_counts: dict[str, int] = Field(default_factory=dict)
     last_observation_tier_by_object: dict[str, str] = Field(default_factory=dict)
     consecutive_no_rp_turns: int = 0
+
+    # ── Campaign / multi-scene progression ───────────────────────────
+    campaign: CampaignState = Field(default_factory=_empty_campaign)
 
     @property
     def discovered_object_ids(self) -> set[str]:

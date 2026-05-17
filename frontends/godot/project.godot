@@ -1,0 +1,27 @@
+; Godot 4 project file for the universe telescope frontend prototype.
+;
+; To open: launch Godot 4.x and import this project.godot.
+; To run: press F5 (Main.tscn is the main scene).
+
+config_version=5
+
+[application]
+
+config/name="universe — Telescope Frontend"
+config/description="Engine-agnostic cosmic discovery prototype rendered in Godot 4."
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.2", "Forward Plus")
+config/icon="res://icon.svg"
+
+[autoload]
+
+FilePaths="*res://scripts/FilePaths.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=800
+
+[rendering]
+
+environment/defaults/default_clear_color=Color(0.02, 0.02, 0.05, 1)

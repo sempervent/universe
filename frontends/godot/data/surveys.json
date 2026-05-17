@@ -1,0 +1,218 @@
+[
+  {
+    "id": "local_sky_survey",
+    "name": "Local Sky Survey",
+    "description": "Catalogue the brightest local sky targets \u2014 Sun, Moon, naked-eye planets.",
+    "required_tier_ids": [
+      "naked_eye"
+    ],
+    "required_signal_types": [],
+    "target_object_types": [
+      "star",
+      "planet",
+      "moon"
+    ],
+    "scene_scope": "solar_system",
+    "completion_goal": 5,
+    "reward_research_points": 10,
+    "unlocks": [],
+    "speculative": false,
+    "flavor": "Every observatory begins by re-discovering the obvious sky.",
+    "min_confidence": 0.5
+  },
+  {
+    "id": "planetary_census",
+    "name": "Planetary Census",
+    "description": "Resolve and confirm every planet and major moon in the system.",
+    "required_tier_ids": [
+      "ground_optical"
+    ],
+    "required_signal_types": [],
+    "target_object_types": [
+      "planet",
+      "moon"
+    ],
+    "scene_scope": "solar_system",
+    "completion_goal": 8,
+    "reward_research_points": 20,
+    "unlocks": [],
+    "speculative": false,
+    "flavor": "",
+    "min_confidence": 0.5
+  },
+  {
+    "id": "small_bodies_watch",
+    "name": "Small Bodies Watch",
+    "description": "Detect minor bodies \u2014 asteroids and comets crossing the inner system.",
+    "required_tier_ids": [
+      "improved_ground"
+    ],
+    "required_signal_types": [],
+    "target_object_types": [
+      "asteroid",
+      "comet"
+    ],
+    "scene_scope": "solar_system",
+    "completion_goal": 2,
+    "reward_research_points": 20,
+    "unlocks": [],
+    "speculative": false,
+    "flavor": "",
+    "min_confidence": 0.5
+  },
+  {
+    "id": "deep_field_survey",
+    "name": "Deep Field Survey",
+    "description": "Long-exposure imaging of distant galaxies, quasars, and Lyman-alpha blobs.",
+    "required_tier_ids": [
+      "space_optical"
+    ],
+    "required_signal_types": [],
+    "target_object_types": [
+      "galaxy",
+      "quasar",
+      "lyman_alpha_blob"
+    ],
+    "scene_scope": "deep_field",
+    "completion_goal": 10,
+    "reward_research_points": 75,
+    "unlocks": [],
+    "speculative": false,
+    "flavor": "",
+    "min_confidence": 0.5
+  },
+  {
+    "id": "radio_sky_survey",
+    "name": "Radio Sky Survey",
+    "description": "Map radio sources, hydrogen line emission, and the cosmic microwave background.",
+    "required_tier_ids": [
+      "radio"
+    ],
+    "required_signal_types": [
+      "radio"
+    ],
+    "target_object_types": [
+      "cmb_background",
+      "quasar",
+      "galaxy"
+    ],
+    "scene_scope": "any",
+    "completion_goal": 5,
+    "reward_research_points": 75,
+    "unlocks": [],
+    "speculative": false,
+    "flavor": "",
+    "min_confidence": 0.5
+  },
+  {
+    "id": "compact_object_search",
+    "name": "Compact Object Search",
+    "description": "Hunt for compact, high-energy sources: black holes and magnetars.",
+    "required_tier_ids": [
+      "xray_gamma"
+    ],
+    "required_signal_types": [
+      "xray"
+    ],
+    "target_object_types": [
+      "black_hole",
+      "magnetar"
+    ],
+    "scene_scope": "deep_field",
+    "completion_goal": 2,
+    "reward_research_points": 100,
+    "unlocks": [],
+    "speculative": false,
+    "flavor": "",
+    "min_confidence": 0.5
+  },
+  {
+    "id": "multi_messenger_event_program",
+    "name": "Multi-Messenger Event Program",
+    "description": "Cross-correlate signals across photon, gravitational, and particle channels.",
+    "required_tier_ids": [
+      "multi_messenger"
+    ],
+    "required_signal_types": [
+      "gravitational_wave"
+    ],
+    "target_object_types": [
+      "black_hole",
+      "magnetar",
+      "quasar"
+    ],
+    "scene_scope": "any",
+    "completion_goal": 3,
+    "reward_research_points": 175,
+    "unlocks": [],
+    "speculative": false,
+    "flavor": "",
+    "min_confidence": 0.75
+  },
+  {
+    "id": "cosmic_web_mapping",
+    "name": "Cosmic Web Mapping Program",
+    "description": "Trace large-scale structure: filaments, nodes, and voids.",
+    "required_tier_ids": [
+      "dark_matter_mapper"
+    ],
+    "required_signal_types": [
+      "weak_lensing"
+    ],
+    "target_object_types": [
+      "cosmic_web_filament",
+      "cosmic_web_node",
+      "void"
+    ],
+    "scene_scope": "deep_field",
+    "completion_goal": 8,
+    "reward_research_points": 225,
+    "unlocks": [],
+    "speculative": false,
+    "flavor": "",
+    "min_confidence": 0.5
+  },
+  {
+    "id": "dark_matter_inference_program",
+    "name": "Dark Matter Inference Program",
+    "description": "Statistical inference of dark matter distribution via lensing and tracers.",
+    "required_tier_ids": [
+      "dark_matter_mapper"
+    ],
+    "required_signal_types": [
+      "dark_matter_inference",
+      "weak_lensing"
+    ],
+    "target_object_types": [
+      "cosmic_web_filament",
+      "void",
+      "galaxy"
+    ],
+    "scene_scope": "deep_field",
+    "completion_goal": 5,
+    "reward_research_points": 300,
+    "unlocks": [],
+    "speculative": false,
+    "flavor": "",
+    "min_confidence": 0.5
+  },
+  {
+    "id": "now_scope_first_light",
+    "name": "Now-Scope First Light",
+    "description": "First operational use of the speculative now-scope. Observes the present state of distant objects rather than retarded light.",
+    "required_tier_ids": [
+      "now_scope"
+    ],
+    "required_signal_types": [
+      "speculative_now_signal"
+    ],
+    "target_object_types": [],
+    "scene_scope": "any",
+    "completion_goal": 1,
+    "reward_research_points": 500,
+    "unlocks": [],
+    "speculative": true,
+    "flavor": "Causality is, for the moment, considered optional.",
+    "min_confidence": 0.5
+  }
+]

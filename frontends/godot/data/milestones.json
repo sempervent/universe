@@ -1,0 +1,128 @@
+[
+  {
+    "id": "first_light",
+    "name": "First Light",
+    "description": "Complete the entity's first observation pass.",
+    "reward_research_points": 5,
+    "condition_type": "observation",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "named_entity",
+    "name": "Founding Charter",
+    "description": "Give the research entity a real name.",
+    "reward_research_points": 5,
+    "condition_type": "entity",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "first_planet",
+    "name": "First Planet Confirmed",
+    "description": "Confirm a planetary detection.",
+    "reward_research_points": 5,
+    "condition_type": "discovery",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "first_moon",
+    "name": "First Moon Confirmed",
+    "description": "Confirm a lunar detection.",
+    "reward_research_points": 5,
+    "condition_type": "discovery",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "first_comet",
+    "name": "First Comet Detected",
+    "description": "Detect a comet.",
+    "reward_research_points": 10,
+    "condition_type": "discovery",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "first_upgrade",
+    "name": "First Telescope Upgrade",
+    "description": "Unlock a telescope tier beyond the naked eye.",
+    "reward_research_points": 10,
+    "condition_type": "progression",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "radio_first_light",
+    "name": "Radio First Light",
+    "description": "Make a radio-band observation.",
+    "reward_research_points": 20,
+    "condition_type": "signal",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "first_deep_sky_object",
+    "name": "First Deep-Sky Object",
+    "description": "Discover a galaxy, quasar, or Lyman-alpha blob.",
+    "reward_research_points": 40,
+    "condition_type": "discovery",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "first_black_hole_candidate",
+    "name": "First Black Hole Candidate",
+    "description": "Identify a candidate black hole.",
+    "reward_research_points": 75,
+    "condition_type": "discovery",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "first_magnetar",
+    "name": "First Magnetar Confirmed",
+    "description": "Confirm a magnetar detection.",
+    "reward_research_points": 75,
+    "condition_type": "discovery",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "multi_messenger_confirmation",
+    "name": "Multi-Messenger Confirmation",
+    "description": "Confirm an object with three or more independent signal types.",
+    "reward_research_points": 100,
+    "condition_type": "signal",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "cosmic_web_mapped",
+    "name": "Cosmic Web Mapped",
+    "description": "Confirm a cosmic web filament or node.",
+    "reward_research_points": 150,
+    "condition_type": "discovery",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "dark_matter_inferred",
+    "name": "Dark Matter Inferred",
+    "description": "Use a dark matter inference to characterise an object.",
+    "reward_research_points": 200,
+    "condition_type": "signal",
+    "hidden": false,
+    "speculative": false
+  },
+  {
+    "id": "now_scope_first_light",
+    "name": "Now-Scope First Light",
+    "description": "Make a first observation through the speculative now-scope.",
+    "reward_research_points": 300,
+    "condition_type": "speculative",
+    "hidden": false,
+    "speculative": true
+  }
+]

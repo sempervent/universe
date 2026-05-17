@@ -1,0 +1,13 @@
+{
+  "files": [
+    "tech_tree.json",
+    "surveys.json",
+    "milestones.json",
+    "discovery_requirements.json",
+    "signal_types.json",
+    "entity_types.json",
+    "random_entity_names.json",
+    "entity_modifiers.json"
+  ],
+  "schema_version": "0.2.0"
+}

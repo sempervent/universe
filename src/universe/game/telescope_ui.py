@@ -38,6 +38,7 @@ def export_telescope_ui(
         RANDOM_ENTITY_NAMES,
         get_all_entity_modifiers,
     )
+    from universe.game.scenes import campaign_catalog_bundle
 
     scene_json = scene.model_dump_json()
     state_json = state.model_dump_json()
@@ -49,6 +50,7 @@ def export_telescope_ui(
     milestones_json = json.dumps([m.model_dump() for m in get_default_milestones()])
 
     modifiers_json = json.dumps([m.model_dump() for m in get_all_entity_modifiers()])
+    catalog_json = json.dumps(campaign_catalog_bundle(state))
 
     html = _TELESCOPE_HTML.replace("__SCENE_DATA__", scene_json)
     html = html.replace("__STATE_DATA__", state_json)
@@ -59,6 +61,7 @@ def export_telescope_ui(
     html = html.replace("__ENTITY_MODIFIERS__", modifiers_json)
     html = html.replace("__SURVEYS_DATA__", surveys_json)
     html = html.replace("__MILESTONES_DATA__", milestones_json)
+    html = html.replace("__SCENE_CATALOG__", catalog_json)
     html = html.replace("__SCENE_NAME__", scene.name)
 
     out.write_text(html, encoding="utf-8")
@@ -232,11 +235,13 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
       <div class="tab-btn" data-tab="tech">Tech</div>
       <div class="tab-btn" data-tab="surveys">Surveys</div>
       <div class="tab-btn" data-tab="milestones">Milestones</div>
+      <div class="tab-btn" data-tab="campaign">Campaign</div>
     </div>
     <div id="tab-detail" class="tab-content active"></div>
     <div id="tab-tech" class="tab-content"></div>
     <div id="tab-surveys" class="tab-content"></div>
     <div id="tab-milestones" class="tab-content"></div>
+    <div id="tab-campaign" class="tab-content"></div>
   </div>
   <div id="log">
     <div class="panel-title">Discovery Log</div>
@@ -253,6 +258,7 @@ const DISC_REQS = __DISCOVERY_REQS__;
 const RANDOM_NAMES = __RANDOM_NAMES__;
 const SURVEYS = __SURVEYS_DATA__;
 const MILESTONES = __MILESTONES_DATA__;
+const SCENE_CATALOG = __SCENE_CATALOG__;
 const ENTITY_TYPES = __ENTITY_TYPES__;
 const ENTITY_MODIFIERS = __ENTITY_MODIFIERS__;
 
@@ -1294,6 +1300,49 @@ function renderMilestones() {
   el.innerHTML = h;
 }
 
+function renderCampaign() {
+  const el = document.getElementById('tab-campaign');
+  const camp = state.campaign || { active_scene_id: 'solar-system', scenes: {} };
+  const activeId = camp.active_scene_id || 'solar-system';
+  const catalogBundle = Array.isArray(SCENE_CATALOG) ? { scenes: SCENE_CATALOG } : SCENE_CATALOG;
+  const scenes = catalogBundle.scenes || [];
+  const rec = catalogBundle.recommended_next_scene_id;
+  let h = '';
+  h += `<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Active scene</div>`;
+  const activeDef = scenes.find(s => s.id === activeId);
+  h += `<div class="tier-card unlocked"><span class="tier-name">${esc(activeDef ? activeDef.name : activeId)}</span>`;
+  h += `<div style="font-size:10px;color:var(--dim);margin-top:3px">${esc(activeId)} — viewing ${esc(SCENE.name)}</div>`;
+  h += `<div style="font-size:10px;color:var(--muted);margin-top:4px">Switch scenes via CLI; re-export this HTML for another scene file.</div></div>`;
+  if (rec && rec !== activeId) {
+    const rd = scenes.find(s => s.id === rec);
+    h += `<div style="margin-top:10px;font-size:11px;color:var(--amber)">Recommended: ${esc(rd ? rd.name : rec)}</div>`;
+    if (catalogBundle.recommended_generate_command) {
+      h += `<div style="font-size:10px;color:var(--dim);margin-top:4px;font-family:monospace;word-break:break-all">${esc(catalogBundle.recommended_generate_command)}</div>`;
+    }
+    if (catalogBundle.recommended_set_scene_command) {
+      h += `<div style="font-size:10px;color:var(--dim);margin-top:4px;font-family:monospace;word-break:break-all">${esc(catalogBundle.recommended_set_scene_command)}</div>`;
+    }
+  }
+  h += `<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin:12px 0 6px">Scenes</div>`;
+  scenes.forEach(s => {
+    const st = (camp.scenes && camp.scenes[s.id]) || {};
+    const unlocked = st.unlocked !== false && s.id === 'solar-system' ? true : !!st.unlocked;
+    const cls = unlocked ? 'tier-card unlocked' : 'tier-card locked';
+    const mark = s.id === activeId ? ' ★' : '';
+    h += `<div class="${cls}">`;
+    h += `<span class="tier-name">${unlocked ? '' : '🔒 '}${esc(s.name)}${mark}</span>`;
+    h += `<div style="font-size:10px;color:var(--dim);margin-top:3px">${esc(s.teaching_summary || s.description || '')}</div>`;
+    if (!unlocked && s.unlock_requirement) {
+      h += `<div class="tier-meta">Unlock: ${esc(s.unlock_requirement)}</div>`;
+    }
+    if (unlocked && s.generate_command) {
+      h += `<div class="tier-meta" style="font-family:monospace;font-size:9px;word-break:break-all">${esc(s.generate_command)}</div>`;
+    }
+    h += '</div>';
+  });
+  el.innerHTML = h;
+}
+
 // ── Wire up ───────────────────────────────────────────────────────────
 document.getElementById('btn-observe').onclick = doObserve;
 document.getElementById('btn-survey').onclick = doSurvey;
@@ -1307,6 +1356,7 @@ function renderAll() {
   renderTechTree();
   renderSurveys();
   renderMilestones();
+  renderCampaign();
   renderSkyMap();
   showGuidanceHints();
 }

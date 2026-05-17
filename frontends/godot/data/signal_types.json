@@ -1,0 +1,15 @@
+[
+  "visible_light",
+  "infrared",
+  "ultraviolet",
+  "radio",
+  "microwave",
+  "xray",
+  "gamma_ray",
+  "gravitational_wave",
+  "neutrino",
+  "cosmic_ray",
+  "weak_lensing",
+  "dark_matter_inference",
+  "speculative_now_signal"
+]
