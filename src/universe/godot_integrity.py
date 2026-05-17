@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,6 +34,14 @@ REQUIRED_GODOT_PATHS: tuple[str, ...] = (
 
 # res:// paths that are generated at runtime (not shipped in repo).
 RUNTIME_RES_PREFIXES: tuple[str, ...] = ()
+
+GODOT_SCRIPT_ERROR_MARKERS: tuple[str, ...] = (
+    "SCRIPT ERROR",
+    "Parse Error",
+    "Cannot infer the type",
+    "Failed to load script",
+    "Could not resolve script",
+)
 
 
 @dataclass
@@ -108,6 +117,79 @@ def validate_godot_project(repo_root: Path) -> GodotIntegrityResult:
                 result.broken_references.append((rel_file, res_path))
 
     return result
+
+
+@dataclass
+class GodotHeadlessResult:
+    ok: bool
+    command: str
+    output: str = ""
+    errors: list[str] = field(default_factory=list)
+    skipped: bool = False
+    skip_reason: str = ""
+
+
+def build_godot_headless_command(binary: Path, godot_root: Path) -> list[str]:
+    """Argv for a short headless editor pass that reloads all project scripts."""
+    return [
+        str(binary),
+        "--headless",
+        "--editor",
+        "--path",
+        str(godot_root),
+        "--quit-after",
+        "2",
+    ]
+
+
+def scan_godot_output_for_script_errors(output: str) -> list[str]:
+    """Return output lines that indicate GDScript load/parse/type failures."""
+    return [
+        line.strip()
+        for line in output.splitlines()
+        if any(marker in line for marker in GODOT_SCRIPT_ERROR_MARKERS)
+    ]
+
+
+def run_godot_headless_validation(
+    repo_root: Path,
+    binary: Path,
+    *,
+    timeout: float = 45.0,
+) -> GodotHeadlessResult:
+    """Run Godot headless editor; fail on script parse/type errors in combined output."""
+    godot_root = godot_project_root(repo_root)
+    cmd = build_godot_headless_command(binary, godot_root)
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=str(godot_root),
+        )
+    except subprocess.TimeoutExpired:
+        return GodotHeadlessResult(
+            ok=False,
+            command=" ".join(cmd),
+            output="",
+            errors=[f"Godot headless validation timed out after {timeout}s"],
+        )
+    except OSError as exc:
+        return GodotHeadlessResult(
+            ok=False,
+            command=" ".join(cmd),
+            errors=[str(exc)],
+        )
+
+    combined = (proc.stdout or "") + (proc.stderr or "")
+    errors = scan_godot_output_for_script_errors(combined)
+    return GodotHeadlessResult(
+        ok=len(errors) == 0,
+        command=" ".join(cmd),
+        output=combined,
+        errors=errors,
+    )
 
 
 def format_integrity_message(result: GodotIntegrityResult) -> str:

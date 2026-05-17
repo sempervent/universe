@@ -50,7 +50,9 @@ If Godot is installed (or `GODOT_BIN` is set):
 uv run universe demo godot --reset --launch
 ```
 
-Verify artifacts: `uv run universe demo check`. Browser fallback: `uv run universe demo html --open`.
+Verify artifacts: `uv run universe demo check` (runs Godot headless script validation automatically when Godot is installed). Browser fallback: `uv run universe demo html --open`.
+
+`uv run universe demo godot --reset` also validates GDScript when Godot is detected. Use `--skip-godot-validate` only if you must bypass that check.
 
 **Troubleshooting**
 

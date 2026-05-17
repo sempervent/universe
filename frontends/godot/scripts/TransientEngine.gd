@@ -14,10 +14,11 @@ static func load_definitions(path: String) -> Array:
 
 
 static func by_id(defs: Array) -> Dictionary:
-	var out := {}
-	for d in defs:
-		if d is Dictionary and d.has("id"):
-			out[d["id"]] = d
+	var out: Dictionary = {}
+	for raw_d in defs:
+		var d: Dictionary = raw_d as Dictionary
+		if d.has("id"):
+			out[str(d["id"])] = d
 	return out
 
 
@@ -27,9 +28,8 @@ static func update_states(state: Dictionary, defs: Array) -> Dictionary:
 	if not (events is Dictionary):
 		events = {}
 	var turn: int = int(out.get("turn", 0))
-	for d in defs:
-		if not (d is Dictionary):
-			continue
+	for raw_d in defs:
+		var d: Dictionary = raw_d as Dictionary
 		var eid: String = str(d.get("id", ""))
 		if eid == "":
 			continue

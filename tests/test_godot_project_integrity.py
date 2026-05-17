@@ -6,8 +6,11 @@ from pathlib import Path
 
 from universe.godot_integrity import (
     REQUIRED_GODOT_SCRIPTS,
+    build_godot_headless_command,
     extract_res_paths,
     godot_project_root,
+    run_godot_headless_validation,
+    scan_godot_output_for_script_errors,
     validate_godot_project,
 )
 
@@ -48,6 +51,51 @@ class TestGodotResReferences:
         paths = extract_res_paths(tscn)
         assert "res://scripts/Main.gd" in paths
         assert (GODOT_ROOT / "scripts" / "Main.gd").is_file()
+
+
+class TestGodotHeadlessValidation:
+    def test_build_godot_headless_command(self, tmp_path):
+        binary = tmp_path / "godot"
+        root = tmp_path / "frontends" / "godot"
+        cmd = build_godot_headless_command(binary, root)
+        assert cmd[0] == str(binary)
+        assert "--headless" in cmd
+        assert "--path" in cmd
+        assert str(root) in cmd
+
+    def test_scan_godot_output_for_script_errors(self):
+        output = "OK\nSCRIPT ERROR: Parse Error: Cannot infer the type of \"oid\"\n"
+        errs = scan_godot_output_for_script_errors(output)
+        assert len(errs) == 1
+        assert "Cannot infer" in errs[0]
+
+    def test_run_godot_headless_validation_mock(self, tmp_path, monkeypatch):
+        (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+        godot = tmp_path / "frontends" / "godot"
+        godot.mkdir(parents=True)
+        binary = tmp_path / "godot-bin"
+
+        class FakeProc:
+            stdout = "Godot Engine\n"
+            stderr = ""
+
+        monkeypatch.setattr(
+            "universe.godot_integrity.subprocess.run",
+            lambda *a, **k: FakeProc(),
+        )
+        result = run_godot_headless_validation(tmp_path, binary)
+        assert result.ok
+        assert "godot-bin" in result.command
+
+    def test_demo_check_help_lists_godot_headless(self):
+        from click.testing import CliRunner
+
+        from universe.cli import main
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["demo", "check", "--help"])
+        assert result.exit_code == 0
+        assert "godot-headless" in result.output
 
 
 class TestGodotIntegrityHelper:

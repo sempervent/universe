@@ -68,6 +68,12 @@ If the editor reports `Could not resolve script "res://scripts/TelescopeConsole.
 3. Confirm `scripts/TelescopeConsole.gd` exists with exact casing.
 4. Reload the project; if the file exists but still fails, open `TelescopeConsole.gd` in Godot — a **parse error** in that file (or its preloads) surfaces as “unresolved script”.
 
+`uv run universe demo check` runs **headless Godot script validation automatically** when a Godot binary is detected (catches parse/type errors such as “Cannot infer the type”). Use `--no-godot-headless` to skip. Use `--godot-headless` to require validation (fails if the binary is missing).
+
+`uv run universe demo godot --reset` does the same when Godot is available (`--skip-godot-validate` to bypass).
+
+Requires Godot on PATH or `GODOT_BIN` for script validation.
+
 ## Data flow
 
 ```

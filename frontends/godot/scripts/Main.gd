@@ -34,7 +34,7 @@ var _state_path: String = ""
 var _last_save_path: String = ""
 
 var sky: SkyRenderer = null
-var console: CanvasLayer = null
+var console: TelescopeConsole = null
 var camera: TelescopeCamera = null
 var world_env: WorldEnvironment = null
 
@@ -358,18 +358,18 @@ func _on_pick_raycast(screen_pos: Vector2) -> void:
 	var q := PhysicsRayQueryParameters3D.create(origin, to)
 	q.collide_with_areas = true
 	q.collide_with_bodies = true
-	var hit := space.intersect_ray(q)
+	var hit: Dictionary = space.intersect_ray(q)
 	if hit.is_empty():
 		return
 	var col: Variant = hit.get("collider", null)
 	if col is Area3D:
-		var holder := col.get_parent()
+		var holder: Node = col.get_parent()
 		if holder is Node3D and holder.name != "":
 			_on_object_picked(String(holder.name))
 
 
 func _on_focus_selected() -> void:
-	var oid := console.selected_id()
+	var oid: String = console.selected_id()
 	if oid == "":
 		_log("Nothing selected to focus (F).", "#ffaa88")
 		return
@@ -420,12 +420,12 @@ func _on_object_picked(object_id: String) -> void:
 
 
 func _on_observe_transient(event_id: String) -> void:
-	var defs_map := TransientEngineS.by_id(transient_defs)
+	var defs_map: Dictionary = TransientEngineS.by_id(transient_defs)
 	if not defs_map.has(event_id):
 		_log("Unknown transient: %s" % event_id, "#ff8888")
 		return
-	var defn: Dictionary = defs_map[event_id]
-	var res := TransientEngineS.observe(scene_data, state, defn, tech_tree)
+	var defn: Dictionary = defs_map[event_id] as Dictionary
+	var res: Dictionary = TransientEngineS.observe(scene_data, state, defn, tech_tree)
 	if not bool(res.get("ok", false)):
 		_log(str(res.get("message", "Cannot observe.")), "#ff8888")
 		return
@@ -435,7 +435,7 @@ func _on_observe_transient(event_id: String) -> void:
 
 
 func _on_observe() -> void:
-	var oid := console.selected_id()
+	var oid: String = console.selected_id()
 	if oid == "":
 		_log("Select an object first.")
 		return
@@ -453,18 +453,18 @@ func _on_survey() -> void:
 
 
 func _observe_one(oid: String) -> void:
-	var obj := _find_object(oid)
+	var obj: Dictionary = _find_object(oid)
 	if obj.is_empty():
 		return
-	var calc := DiscoveryEngineS.calculate_confidence(
+	var calc: Dictionary = DiscoveryEngineS.calculate_confidence(
 		obj, state, tech_tree, requirements_map, entity_modifiers,
 	)
-	var conf: float = calc["confidence"]
+	var conf: float = float(calc.get("confidence", 0.0))
 	if conf < 0.01:
 		return
-	var prev: Dictionary = state["discoveries"].get(oid, {})
-	var is_new := prev.is_empty()
-	var is_upgrade := not is_new and conf > float(prev.get("confidence", 0)) + 0.05
+	var prev: Dictionary = state["discoveries"].get(oid, {}) as Dictionary
+	var is_new: bool = prev.is_empty()
+	var is_upgrade: bool = not is_new and conf > float(prev.get("confidence", 0)) + 0.05
 	if not is_new and not is_upgrade:
 		return
 	var pts: int = DiscoveryEngineS.award_points(
@@ -481,12 +481,12 @@ func _observe_one(oid: String) -> void:
 		"research_points_earned": int(prev.get("research_points_earned", 0)) + pts,
 		"first_detected_tier": state.get("active_telescope_tier", "naked_eye"),
 	}
-	var label := DiscoveryEngineS.confidence_label(conf)
-	var name: String = obj.get("name", oid)
-	var tag := "[NEW]" if is_new else "[UPGRADED]"
+	var label: String = DiscoveryEngineS.confidence_label(conf)
+	var name: String = str(obj.get("name", oid))
+	var tag: String = "[NEW]" if is_new else "[UPGRADED]"
 	_log("%s %s (%s) — %s %d%%, +%d RP" % [tag, name, obj.get("type", ""), label, int(round(conf * 100)), pts], "#aaffaa")
 
-	var sresult := SurveyEngineS.update_progress(
+	var sresult: Dictionary = SurveyEngineS.update_progress(
 		state,
 		scene_data,
 		oid,
@@ -507,10 +507,11 @@ func _observe_one(oid: String) -> void:
 
 
 func _post_observe() -> void:
-	var mres := MilestoneEngineS.evaluate(state, milestones, entity_modifiers)
+	var mres: Dictionary = MilestoneEngineS.evaluate(state, milestones, entity_modifiers)
 	state = mres["state"]
-	for m in mres["achieved"]:
-		var spec := " [SPECULATIVE]" if m.get("speculative", false) else ""
+	for raw_m in mres["achieved"]:
+		var m: Dictionary = raw_m as Dictionary
+		var spec: String = " [SPECULATIVE]" if bool(m.get("speculative", false)) else ""
 		var rp: int = int(m.get("_awarded_rp", m.get("reward_research_points", 0)))
 		_log("Milestone: %s%s — +%d RP" % [m["name"], spec, rp], "#ffcc66")
 	_evaluate_objectives()
@@ -519,9 +520,10 @@ func _post_observe() -> void:
 
 
 func _evaluate_objectives() -> void:
-	var res := ObjectiveEngineS.evaluate(state, scene_data, objective_defs)
+	var res: Dictionary = ObjectiveEngineS.evaluate(state, scene_data, objective_defs)
 	state = res["state"]
-	for o in res["completed"]:
+	for raw_o in res["completed"]:
+		var o: Dictionary = raw_o as Dictionary
 		_log(
 			"Objective: %s — +%d RP" % [str(o.get("title", "")), int(o.get("reward_research_points", 0))],
 			"#88ccff",

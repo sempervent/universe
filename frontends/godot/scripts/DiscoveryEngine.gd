@@ -55,12 +55,12 @@ static func calculate_confidence(
 		if known_set.has(s):
 			detected.append(s)
 
-	var sensitivity := TechTree.best_sensitivity(tree, state)
-	var resolution := TechTree.best_resolution(tree, state)
+	var sensitivity: float = TechTree.best_sensitivity(tree, state)
+	var resolution: float = TechTree.best_resolution(tree, state)
 	var min_sens: float = float(req.get("minimum_sensitivity", 0.0))
 	var min_res: float = float(req.get("minimum_resolution_arcsec", 3600.0))
 	var min_tier: int = int(req.get("minimum_telescope_tier", 0))
-	var have_tier := TechTree.max_tier_index(tree, state)
+	var have_tier: int = TechTree.max_tier_index(tree, state)
 
 	if have_tier < min_tier:
 		return {"confidence": 0.0, "detected": detected}
@@ -73,17 +73,17 @@ static func calculate_confidence(
 	else:
 		coverage = 1.0
 
-	var sens_factor := clampf(sensitivity / max(min_sens, 0.0001), 0.0, 1.5)
-	var res_factor := clampf(min_res / max(resolution, 0.0001), 0.0, 1.5)
+	var sens_factor: float = clampf(sensitivity / maxf(min_sens, 0.0001), 0.0, 1.5)
+	var res_factor: float = clampf(min_res / maxf(resolution, 0.0001), 0.0, 1.5)
 
-	var base := coverage * min(sens_factor, 1.0) * min(res_factor, 1.0)
+	var base: float = coverage * minf(sens_factor, 1.0) * minf(res_factor, 1.0)
 
-	var optional_detected := 0
+	var optional_detected: int = 0
 	for s in optional:
 		if known_set.has(s):
 			optional_detected += 1
-	var bonus := 0.1 * float(optional_detected)
-	var confidence := clampf(base + bonus, 0.0, 1.0)
+	var bonus: float = 0.1 * float(optional_detected)
+	var confidence: float = clampf(base + bonus, 0.0, 1.0)
 
 	# Multi-messenger boost: 3+ signal channels confirms.
 	if detected.size() >= 3:

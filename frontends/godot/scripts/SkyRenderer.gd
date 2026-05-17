@@ -453,7 +453,7 @@ func _add_quasar_jets(parent: Node3D, color: Color, oid: String) -> Array[Standa
 		cyl.bottom_radius = 0.06
 		cyl.height = 1.75
 		jet.mesh = cyl
-		var d := dir * sign
+		var d: Vector3 = dir * sign
 		jet.transform = Transform3D(_basis_y_along(d), d * 0.92)
 		var jm := StandardMaterial3D.new()
 		jm.albedo_color = color
@@ -528,7 +528,7 @@ func _add_filament_polyline(parent: Node3D, points: Array[Vector3]) -> void:
 		cyl.top_radius = rad
 		cyl.bottom_radius = rad
 		seg.mesh = cyl
-		var d := (b - a) / h
+		var d: Vector3 = (b - a) / h
 		seg.transform = Transform3D(_basis_y_along(d), (a + b) * 0.5)
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = Color(base_col.r, base_col.g, base_col.b, 0.55)

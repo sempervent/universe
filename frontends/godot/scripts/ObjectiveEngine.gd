@@ -90,8 +90,9 @@ static func _condition(defn: Dictionary, state: Dictionary, scene: Dictionary) -
 			var name: String = str(state.get("research_entity", {}).get("name", ""))
 			return name != "" and name != "Unnamed Research Entity"
 		"solar_discovery":
-			for d in state.get("discoveries", {}).values():
-				if d is Dictionary and str(d.get("object_type", "")) in [
+			for raw_d in state.get("discoveries", {}).values():
+				var d: Dictionary = raw_d as Dictionary
+				if str(d.get("object_type", "")) in [
 					"star", "planet", "moon", "asteroid", "comet", "observatory"
 				]:
 					return true
@@ -125,8 +126,9 @@ static func _condition(defn: Dictionary, state: Dictionary, scene: Dictionary) -
 			var sp: Dictionary = state.get("survey_progress", {}).get(sv, {})
 			return bool(sp.get("completed", false))
 		"deep_field_discovery":
-			for d in state.get("discoveries", {}).values():
-				if d is Dictionary and str(d.get("object_type", "")) in [
+			for raw_d in state.get("discoveries", {}).values():
+				var d: Dictionary = raw_d as Dictionary
+				if str(d.get("object_type", "")) in [
 					"galaxy", "quasar", "lyman_alpha_blob"
 				]:
 					if float(d.get("confidence", 0)) >= 0.5:

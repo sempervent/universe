@@ -58,6 +58,8 @@ frontends/godot/
     uv run universe demo godot --reset
     ```
 
+    When Godot is on PATH (or `GODOT_BIN` is set), that command also runs headless script validation and fails before you open a broken project. Use `--skip-godot-validate` only to bypass.
+
     Optional: `uv run universe demo godot --reset --launch` if Godot is installed.
 
 2. Open `frontends/godot/project.godot` in Godot 4.x (any 4.2+).

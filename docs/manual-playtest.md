@@ -8,6 +8,8 @@ Use this checklist for first-run UX validation. **Godot** is the preferred manua
 uv sync
 uv run universe demo godot --reset
 uv run universe demo check
+
+(`demo godot` runs Godot headless validation when a binary is detected; `demo check` does the same by default.)
 ```
 
 Open the Godot project (`frontends/godot/project.godot`) and press Play.

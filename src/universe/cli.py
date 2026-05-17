@@ -1390,6 +1390,11 @@ def _demo_entity_options(f):
 )
 @click.option("--launch", is_flag=True, help="Launch Godot (requires binary).")
 @click.option("--run", is_flag=True, help="Run main scene (default: open editor).")
+@click.option(
+    "--skip-godot-validate",
+    is_flag=True,
+    help="Skip Godot headless script validation (not recommended).",
+)
 def demo_godot(
     entity_name: str,
     entity_type: str,
@@ -1398,6 +1403,7 @@ def demo_godot(
     clear_overrides: bool,
     launch: bool,
     run: bool,
+    skip_godot_validate: bool,
 ) -> None:
     """Generate scenes, state, Godot data bundle; optionally launch Godot."""
     from universe.demo import format_godot_prep_message, prepare_godot_demo
@@ -1411,6 +1417,7 @@ def demo_godot(
         launch=launch,
         editor=not run,
         run_game=run,
+        skip_godot_validate=skip_godot_validate,
     )
     click.echo(format_godot_prep_message(result))
     if not result.success:
@@ -1458,11 +1465,26 @@ def demo_unreal(launch: bool) -> None:
 
 
 @demo.command("check")
-def demo_check() -> None:
+@click.option(
+    "--godot-headless",
+    is_flag=True,
+    help="Require Godot headless validation (fails if binary missing).",
+)
+@click.option(
+    "--no-godot-headless",
+    is_flag=True,
+    help="Skip Godot headless script validation even if a binary is detected.",
+)
+def demo_check(godot_headless: bool, no_godot_headless: bool) -> None:
     """Verify generated scenes, game state, and Godot data bundle."""
     from universe.demo import format_check_message, run_demo_check
 
-    check = run_demo_check()
+    headless_mode: bool | None = None
+    if no_godot_headless:
+        headless_mode = False
+    elif godot_headless:
+        headless_mode = True
+    check = run_demo_check(godot_headless=headless_mode)
     click.echo(format_check_message(check))
     if not check.ok:
         sys.exit(1)

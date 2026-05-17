@@ -314,6 +314,37 @@ def html_output_path(repo_root: Path, scene_id: str) -> Path:
     return _rel(repo_root, f"data/generated/{scene_id}-ui.html")
 
 
+def validate_godot_scripts_headless(
+    repo_root: Path,
+    *,
+    binary: Path | None = None,
+    required: bool = False,
+) -> tuple[bool, list[str], list[str]]:
+    """Run Godot headless editor validation. Returns (ok, errors, warnings)."""
+    from universe.godot_integrity import godot_project_complete, run_godot_headless_validation
+
+    bin_path = binary or detect_godot_binary()
+    if not godot_project_complete(repo_root):
+        msg = "Godot project scaffold incomplete (missing Main.gd or Main.tscn)"
+        if required:
+            return False, [msg], []
+        return True, [], [msg]
+
+    if bin_path is None:
+        msg = (
+            "Godot binary not found; skipped script parse validation. "
+            "Set GODOT_BIN or install Godot, then re-run."
+        )
+        if required:
+            return False, [msg.replace("skipped ", "")], []
+        return True, [], [msg]
+
+    hres = run_godot_headless_validation(repo_root, bin_path)
+    if hres.ok:
+        return True, [], []
+    return False, hres.errors or ["Godot headless validation failed"], []
+
+
 def prepare_godot_demo(
     *,
     repo_root: Path | None = None,
@@ -326,6 +357,7 @@ def prepare_godot_demo(
     editor: bool = True,
     run_game: bool = False,
     force_scenes: bool = False,
+    skip_godot_validate: bool = False,
 ) -> DemoPreparationResult:
     root = find_repo_root(repo_root)
     result = DemoPreparationResult(success=True, repo_root=root)
@@ -392,6 +424,17 @@ def prepare_godot_demo(
             result.warnings.append(msg)
         else:
             result.warnings.append(msg)
+
+    if not skip_godot_validate:
+        g_ok, g_errors, g_warnings = validate_godot_scripts_headless(
+            root,
+            binary=result.godot_binary,
+            required=result.godot_binary is not None,
+        )
+        result.warnings.extend(g_warnings)
+        if not g_ok:
+            result.success = False
+            result.errors.extend(g_errors)
 
     if launch:
         if result.godot_binary is None:
@@ -519,7 +562,11 @@ def prepare_unreal_demo(
     return result
 
 
-def run_demo_check(repo_root: Path | None = None) -> DemoCheckResult:
+def run_demo_check(
+    repo_root: Path | None = None,
+    *,
+    godot_headless: bool | None = None,
+) -> DemoCheckResult:
     root = find_repo_root(repo_root)
     checks: list[tuple[str, bool, str]] = []
     warnings: list[str] = []
@@ -610,6 +657,29 @@ def run_demo_check(repo_root: Path | None = None) -> DemoCheckResult:
     else:
         add("Godot binary", True, "not found (optional)")
         warnings.append("Godot binary not on PATH — use demo godot --launch after installing.")
+
+    run_headless = godot_headless
+    if run_headless is None:
+        run_headless = binary is not None and godot_project_complete(root)
+
+    if run_headless:
+        if binary is None:
+            add("godot headless validation", False, "Godot binary not found (set GODOT_BIN)")
+        else:
+            g_ok, g_errors, g_warnings = validate_godot_scripts_headless(
+                root, binary=binary, required=True
+            )
+            warnings.extend(g_warnings)
+            detail = "no script errors" if g_ok else (g_errors[0] if g_errors else "failed")
+            add("godot headless validation", g_ok, detail)
+            if not g_ok:
+                for err in g_errors[:5]:
+                    warnings.append(err)
+    elif binary is None:
+        warnings.append(
+            "Godot binary not found; skipping script parse validation. "
+            "Set GODOT_BIN once Godot is installed."
+        )
 
     ow = overrides_warning(root)
     if ow:

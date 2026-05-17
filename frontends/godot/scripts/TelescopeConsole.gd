@@ -1052,9 +1052,8 @@ func render_transients(
 	var upcoming := []
 	var expired := []
 	var observed := []
-	for d in defs:
-		if not (d is Dictionary):
-			continue
+	for raw_d in defs:
+		var d: Dictionary = raw_d as Dictionary
 		if str(d.get("scene_id", "")) != sid:
 			continue
 		var eid: String = str(d.get("id", ""))
@@ -1082,10 +1081,11 @@ func render_transients(
 			continue
 		lines.append("")
 		lines.append("[b]%s[/b]" % label_text)
-		for d in bucket:
-			var spec := " [color=#cc8855][SPECULATIVE][/color]" if d.get("speculative", false) else ""
-			var chk := _TransientEngine.is_observable(scene, state, d, tech_tree)
-			var ok := bool(chk.get("ok", false))
+		for raw_d in bucket:
+			var d: Dictionary = raw_d as Dictionary
+			var spec: String = " [color=#cc8855][SPECULATIVE][/color]" if bool(d.get("speculative", false)) else ""
+			var chk: Dictionary = _TransientEngine.is_observable(scene, state, d, tech_tree)
+			var ok: bool = bool(chk.get("ok", false))
 			var mark := "[color=#88ff99]●[/color]" if ok else "[color=#7788aa]○[/color]"
 			lines.append(
 				"%s %s%s — +%d RP (t%d–%d)" % [
@@ -1108,9 +1108,10 @@ func render_transients(
 	_transients_text.text = "\n".join(lines)
 	_selected_transient_id = ""
 	_btn_observe_transient.disabled = true
-	for d in active:
+	for raw_d in active:
+		var d: Dictionary = raw_d as Dictionary
 		var eid: String = str(d.get("id", ""))
-		var chk2 := _TransientEngine.is_observable(scene, state, d, tech_tree)
+		var chk2: Dictionary = _TransientEngine.is_observable(scene, state, d, tech_tree)
 		if bool(chk2.get("ok", false)):
 			_selected_transient_id = eid
 			_btn_observe_transient.disabled = false
@@ -1125,9 +1126,8 @@ func _on_observe_transient_pressed() -> void:
 
 func _next_action_summary(state: Dictionary, scene: Dictionary, defs: Array) -> String:
 	var active_ids: Array = state.get("active_objective_ids", [])
-	for d in defs:
-		if not (d is Dictionary):
-			continue
+	for raw_d in defs:
+		var d: Dictionary = raw_d as Dictionary
 		var oid: String = str(d.get("id", ""))
 		if oid in active_ids:
 			return "Next action: %s" % str(d.get("title", oid))
@@ -1144,9 +1144,8 @@ func render_objectives(state: Dictionary, defs: Array) -> void:
 	lines.append("[b]Tutorial objectives[/b]")
 	var active_ids: Array = state.get("active_objective_ids", [])
 	var objectives: Dictionary = state.get("objectives", {})
-	for d in defs:
-		if not (d is Dictionary):
-			continue
+	for raw_d in defs:
+		var d: Dictionary = raw_d as Dictionary
 		var oid: String = str(d.get("id", ""))
 		if oid not in active_ids:
 			continue
@@ -1156,11 +1155,10 @@ func render_objectives(state: Dictionary, defs: Array) -> void:
 		if cmd != "":
 			lines.append("   [color=#6688aa]%s[/color]" % cmd)
 		break
-	var done := 0
-	for d in defs:
-		if not (d is Dictionary):
-			continue
-		var prog: Dictionary = objectives.get(str(d.get("id", "")), {})
+	var done: int = 0
+	for raw_d in defs:
+		var d: Dictionary = raw_d as Dictionary
+		var prog: Dictionary = objectives.get(str(d.get("id", "")), {}) as Dictionary
 		if str(prog.get("status", "")) == "completed":
 			done += 1
 	lines.append("")

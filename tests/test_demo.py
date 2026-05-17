@@ -30,15 +30,21 @@ def _write_minimal_godot_scaffold(base: Path) -> None:
     (godot / "scenes").mkdir(parents=True, exist_ok=True)
     (godot / "scripts").mkdir(parents=True, exist_ok=True)
     (godot / "scenes" / "Main.tscn").write_text(
-        '[ext_resource type="Script" path="res://scripts/Main.gd" id="1"]\n'
+        "[gd_scene load_steps=2 format=3]\n\n"
+        '[ext_resource type="Script" path="res://scripts/Main.gd" id="1"]\n\n'
         '[node name="Main" type="Node3D"]\n'
-        "script = ExtResource(\"1\")\n",
+        'script = ExtResource("1")\n',
         encoding="utf-8",
     )
     for rel in REQUIRED_GODOT_SCRIPTS:
         path = godot / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        body = "extends CanvasLayer\n" if rel.endswith("TelescopeConsole.gd") else "extends Node\n"
+        if rel.endswith("Main.gd"):
+            body = "extends Node3D\n"
+        elif rel.endswith("TelescopeConsole.gd"):
+            body = "extends CanvasLayer\n"
+        else:
+            body = "extends RefCounted\n"
         path.write_text(body, encoding="utf-8")
 
 
@@ -106,7 +112,9 @@ class TestPrepareGodotDemo:
         assert payload["research_entity"]["name"] == "Test Institute"
 
         state.write_text("{}", encoding="utf-8")
-        result = prepare_godot_demo(repo_root=tmp_path, reset=True)
+        result = prepare_godot_demo(
+            repo_root=tmp_path, reset=True, skip_godot_validate=True
+        )
         assert result.success
         assert result.state_path is not None
         payload2 = json.loads(result.state_path.read_text(encoding="utf-8"))
@@ -119,7 +127,9 @@ class TestPrepareGodotDemo:
             'config/name="test"\n', encoding="utf-8"
         )
         _write_minimal_godot_scaffold(tmp_path)
-        result = prepare_godot_demo(repo_root=tmp_path, reset=True)
+        result = prepare_godot_demo(
+            repo_root=tmp_path, reset=True, skip_godot_validate=True
+        )
         assert result.success
         manifest = tmp_path / "frontends" / "godot" / "data" / "manifest.json"
         assert manifest.is_file()
@@ -148,8 +158,8 @@ class TestDemoCheck:
             'config/name="test"\n', encoding="utf-8"
         )
         _write_minimal_godot_scaffold(tmp_path)
-        prepare_godot_demo(repo_root=tmp_path, reset=True)
-        check = run_demo_check(tmp_path)
+        prepare_godot_demo(repo_root=tmp_path, reset=True, skip_godot_validate=True)
+        check = run_demo_check(tmp_path, godot_headless=False)
         assert check.ok
 
     def test_fails_when_files_missing(self, tmp_path):
@@ -171,7 +181,7 @@ class TestDemoCli:
         with patch("universe.demo.find_repo_root", return_value=tmp_path):
             result = runner.invoke(
                 main,
-                ["demo", "godot", "--reset"],
+                ["demo", "godot", "--reset", "--skip-godot-validate"],
                 catch_exceptions=False,
             )
         assert result.exit_code == 0, result.output
@@ -224,6 +234,69 @@ class TestDemoCli:
                 )
         assert result.exit_code != 0
         assert "Godot binary" in result.output
+
+
+class TestDemoGodotValidationBehavior:
+    def test_validate_headless_fails_on_infer_error_output(self, tmp_path, monkeypatch):
+        from universe.demo import validate_godot_scripts_headless
+        from universe.godot_integrity import GodotHeadlessResult
+
+        (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+        _write_minimal_godot_scaffold(tmp_path)
+        binary = tmp_path / "godot"
+
+        def fake_run(*_a, **_k):
+            return GodotHeadlessResult(
+                ok=False,
+                command="fake",
+                errors=["Parse Error: Cannot infer the type of \"base\""],
+            )
+
+        monkeypatch.setattr(
+            "universe.godot_integrity.run_godot_headless_validation",
+            lambda *_a, **_k: fake_run(),
+        )
+        ok, errors, _ = validate_godot_scripts_headless(tmp_path, binary=binary, required=True)
+        assert not ok
+        assert any("Cannot infer" in e for e in errors)
+
+    def test_prepare_godot_skips_validation_when_flag_set(self, tmp_path, monkeypatch):
+        (tmp_path / "pyproject.toml").write_text("[project]\nname='t'\n", encoding="utf-8")
+        (tmp_path / "frontends" / "godot" / "data").mkdir(parents=True)
+        (tmp_path / "frontends" / "godot" / "project.godot").write_text(
+            'config/name="test"\n', encoding="utf-8"
+        )
+        _write_minimal_godot_scaffold(tmp_path)
+        called = {"n": 0}
+
+        def fake_validate(*_a, **_k):
+            called["n"] += 1
+            return False, ["should not run"], []
+
+        monkeypatch.setattr("universe.demo.validate_godot_scripts_headless", fake_validate)
+        result = prepare_godot_demo(repo_root=tmp_path, reset=True, skip_godot_validate=True)
+        assert called["n"] == 0
+        assert result.success
+
+    def test_demo_check_help_lists_godot_flags(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["demo", "check", "--help"])
+        assert result.exit_code == 0
+        assert "no-godot-headless" in result.output
+
+    def test_demo_check_runs_headless_by_default_when_binary_detected(
+        self, monkeypatch,
+    ):
+        from universe.demo import run_demo_check
+
+        monkeypatch.setattr("universe.demo.detect_godot_binary", lambda: Path("/fake/godot"))
+        monkeypatch.setattr(
+            "universe.demo.validate_godot_scripts_headless",
+            lambda *_a, **_k: (True, [], []),
+        )
+        check = run_demo_check(REPO_ROOT)
+        labels = [c[0] for c in check.checks]
+        assert "godot headless validation" in labels
 
 
 class TestDemoGodotIntegrity:
